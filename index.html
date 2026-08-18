@@ -312,6 +312,7 @@
   <button class="secondary" id="editRecallBtn" style="display:none;" onclick="editRecallData()">🔑 Masukkan PIN untuk Edit</button>
   <button class="secondary" id="exitRecallBtn" style="display:none;" onclick="exitRecallMode()">↩️ Form Baru</button>
   <span class="status" id="statusText">Belum tersimpan</span>
+  <button class="secondary" id="resetVehBtn" style="display:none;" onclick="resetVehicleStatus()">🔄 Reset Status Mobil</button>
   <button class="secondary" id="suToggleBtn" onclick="toggleSuperUser()">🔒 Super User</button>
   <button class="danger" id="mainSubmitBtn" onclick="submitForm()">✅ Simpan &amp; Kirim Approval</button>
 </div>
@@ -766,15 +767,34 @@ function toggleSuperUser(){
       superUserMode=true;
       document.getElementById('suBadge').style.display='inline-block';
       document.getElementById('editVehBtn').style.display='inline-block';
+      document.getElementById('resetVehBtn').style.display='inline-block';
       document.getElementById('suToggleBtn').textContent="🔓 Keluar Super User";
     });
   } else {
     superUserMode=false;
     document.getElementById('suBadge').style.display='none';
     document.getElementById('editVehBtn').style.display='none';
+    document.getElementById('resetVehBtn').style.display='none';
     document.getElementById('saveVehBtn').style.display='none';
     document.getElementById('suToggleBtn').textContent="🔒 Super User";
     lockVehicleFields();
+  }
+}
+async function resetVehicleStatus(){
+  if(!confirm("Reset status mobil menjadi 'Available' (Siap Pakai)?")) return;
+  document.getElementById('statusText').textContent = "Mereset status mobil...";
+  try{
+    const res = await fetch(CONFIG.SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'resetVehicleStatus',password:CONFIG.SUPERUSER_PASSWORD})});
+    const json = await res.json();
+    if(json && json.error){
+      alert("Gagal: " + json.error);
+      document.getElementById('statusText').textContent = "Gagal reset status ❌";
+    } else {
+      document.getElementById('statusText').textContent = "Status mobil berhasil di-reset ke Available ✅";
+      alert("Status mobil berhasil di-reset! Sekarang mobil siap dipinjam kembali.");
+    }
+  }catch(e){
+    document.getElementById('statusText').textContent = "Gagal reset status ❌";
   }
 }
 function startEditVehicle(){
@@ -962,14 +982,20 @@ let recallListCache = [];
 function openRecallModal(){
   document.getElementById('recallOverlay').classList.add('open');
   document.getElementById('recallSearchInput').value = '';
-  loadRecallList();
+  if (recallListCache && recallListCache.length > 0) {
+    renderRecallList(recallListCache);
+  } else {
+    loadRecallList();
+  }
 }
 function closeRecallModal(){
   document.getElementById('recallOverlay').classList.remove('open');
 }
 async function loadRecallList(){
   const listEl = document.getElementById('recallModalList');
-  listEl.innerHTML = '<div class="recall-empty">Memuat daftar form...</div>';
+  if (!recallListCache || recallListCache.length === 0) {
+    listEl.innerHTML = '<div class="recall-empty">Memuat daftar form...</div>';
+  }
   if(!CONFIG.SCRIPT_URL.startsWith("http")){
     listEl.innerHTML = '<div class="recall-empty">SCRIPT_URL belum dikonfigurasi.</div>';
     return;
@@ -980,9 +1006,12 @@ async function loadRecallList(){
     recallListCache = (json && json.data) ? json.data : [];
     renderRecallList(recallListCache);
   }catch(e){
-    listEl.innerHTML = '<div class="recall-empty">Gagal memuat daftar ❌</div>';
+    if (!recallListCache || recallListCache.length === 0) {
+      listEl.innerHTML = '<div class="recall-empty">Gagal memuat daftar ❌</div>';
+    }
   }
 }
+setTimeout(()=>loadRecallList(), 1200);
 function statusLabel(s){
   if(s==='pending') return 'Menunggu Approval';
   if(s==='approved1') return 'Approval Tahap 1 ✓';
