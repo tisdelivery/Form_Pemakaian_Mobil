@@ -685,6 +685,14 @@ async function submitApprovalAction(token, roleNum, decision) {
     if(error) throw error;
     
     alert(`Berhasil! Pengajuan telah ${decision === 'approve' ? 'disetujui' : 'ditolak'}.`);
+
+    // Kirim notifikasi email ke Approver berikutnya via Apps Script Mailer (Background)
+    fetch("https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec", {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'sendApprovalEmail', token: token, role: roleNum === 1 ? 2 : 2 })
+    }).catch(err => console.warn('Email background trigger warning:', err));
+
     closeDetailModal();
     forceRefreshData();
   } catch(e) {

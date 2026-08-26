@@ -989,10 +989,18 @@ async function submitForm(){
   try{
     const { data, error } = await supabaseClient.from('submissions').insert([row]).select();
     if(error) throw error;
-    document.getElementById('statusText').textContent = "Tersimpan ✅ (Real-time di Supabase)";
+    document.getElementById('statusText').textContent = "Tersimpan ✅ & Email Notifikasi Dikirim!";
     document.getElementById('approvalBadge').style.display='inline-block';
     document.getElementById('approvalBadge').textContent='⏳ Menunggu Approval';
     document.getElementById('metaStatus').textContent='Menunggu Approval';
+
+    // Kirim notifikasi email ke Approver 1 via Apps Script Mailer (Background)
+    fetch("https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec", {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'sendApprovalEmail', token: row.token, role: 1 })
+    }).catch(err => console.warn('Email trigger background warning:', err));
+
   }catch(e){
     console.error(e);
     document.getElementById('statusText').textContent = "Gagal menyimpan ❌: " + e.message;
