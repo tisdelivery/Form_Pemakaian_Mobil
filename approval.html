@@ -690,7 +690,7 @@ async function submitApprovalAction(token, roleNum, decision) {
     fetch("https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'sendApprovalEmail', token: token, role: roleNum === 1 ? 2 : 2 })
+      body: JSON.stringify({ action: 'submitApproval', token: token, role: roleNum, decision: decision, note: note })
     }).catch(err => console.warn('Email background trigger warning:', err));
 
     closeDetailModal();
