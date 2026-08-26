@@ -1173,6 +1173,16 @@ function populateFormFromData(d){
       'Foto SIM tersimpan: <a href="'+d.fotoSimUrl+'" target="_blank" rel="noopener">lihat foto</a> '
       + '(upload foto baru di sini untuk menggantinya)';
   }
+
+  // Update Status Banner Header & Badge secara dinamis
+  const stText = statusLabel(d.approvalStatus);
+  document.getElementById('metaStatus').textContent = stText;
+  const b = document.getElementById('approvalBadge');
+  if(b) {
+    b.style.display = 'inline-block';
+    b.textContent = stText;
+    b.className = 'approval-badge ' + (d.approvalStatus || 'pending');
+  }
 }
 
 function lockRecallFields(lock){
