@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Approval Peminjaman Mobil - Integra Solusi Mandiri</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+  
+  :root {
+    --red: #8a1116; --red-dark: #6e0d11; --orange: #f07d1a; --orange-2: #f5a623;
+    --ink: #1f2226; --line: #c9ccd1; --bg: #eef0f2; --card: #ffffff;
+    --green: #1e7a3c; --blue: #1565c0;
+    --sans: 'Inter', 'Segoe UI', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--sans); background: var(--bg); color: var(--ink);
+  }
+
+  /* TOOLBAR */
+  .toolbar {
+    position: sticky; top: 0; z-index: 50; background: #20232a; color: #fff;
+    padding: 10px 16px; display: flex; gap: 10px; align-items: center;
+  }
+  .toolbar .brand { font-weight: 700; font-size: 15px; letter-spacing: 1px; color: var(--orange); }
+  .toolbar .brand span { color: #9aa0aa; font-weight: 400; font-size: 12px; }
+  
+  .page-wrap { padding: 30px 12px 60px; display: flex; justify-content: center; }
+  .card {
+    width: 600px; max-width: 100%; background: var(--card);
+    box-shadow: 0 4px 24px rgba(0,0,0,.12); border-radius: 8px; overflow: hidden;
+  }
+  
+  .header {
+    background: var(--red); color: #fff; padding: 20px 24px; text-align: center;
+    position: relative;
+  }
+  .header h2 { margin: 0; font-size: 20px; letter-spacing: 0.5px; }
+  .header p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
+
+  .status-banner {
+    padding: 12px 24px; font-weight: 600; text-align: center; font-size: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .status-banner.pending { background: #fff3cd; color: #856404; }
+  .status-banner.approved1 { background: #cfe2ff; color: #084298; }
+  .status-banner.approved2 { background: #d1e7dd; color: #0a3622; }
+  .status-banner.rejected { background: #f8d7da; color: #842029; }
+
+  .body-content { padding: 20px 24px; }
+  
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-bottom: 24px; }
+  .detail-table td { padding: 10px 12px; border-bottom: 1px solid #eaeaea; }
+  .detail-table td:first-child { font-weight: 600; width: 35%; color: #555; background: #fafafa; }
+  
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #333; }
+  .field textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px;
+    font-family: inherit; font-size: 13.5px; min-height: 80px; resize: vertical;
+  }
+  .field textarea:focus { outline: none; border-color: var(--orange); }
+
+  .actions { display: flex; gap: 12px; margin-top: 24px; }
+  .btn {
+    flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: 0.2s; color: #fff;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-approve { background: var(--green); }
+  .btn-approve:hover:not(:disabled) { background: #15622d; }
+  .btn-reject { background: var(--red); }
+  .btn-reject:hover:not(:disabled) { background: var(--red-dark); }
+  
+  .error-msg { text-align: center; color: var(--red); padding: 40px; font-weight: 600; }
+  .loading { text-align: center; padding: 40px; color: #666; font-weight: 500; }
+
+  .note-box {
+    background: #fdf3e9; border-left: 4px solid var(--orange);
+    padding: 10px 14px; font-size: 13px; color: #5c3d10; margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="brand">INTEGRA <span>SOLUSI MANDIRI</span></div>
+</div>
+
+<div class="page-wrap">
+  <div class="card" id="mainCard">
+    <div class="loading" id="loadingState">
+      ⏳ Memuat data form...
+    </div>
+  </div>
+</div>
+
+<script>
+// KONFIGURASI SCRIPT URL (PASTIKAN SAMA DENGAN INDEX.HTML)
+const CONFIG_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec";
+
+const urlParams = new URLSearchParams(window.location.search);
+const token = urlParams.get('token');
+const role = parseInt(urlParams.get('role') || '1');
+
+let formData = null;
+
+async function loadData() {
+  const card = document.getElementById('mainCard');
+  if (!token) {
+    card.innerHTML = '<div class="error-msg">⚠️ Token tidak valid atau tidak ditemukan.</div>';
+    return;
+  }
+
+  try {
+    const res = await fetch(CONFIG_SCRIPT_URL + "?action=getApprovalData&token=" + encodeURIComponent(token));
+    const json = await res.json();
+    
+    if (json.error) {
+      card.innerHTML = `<div class="error-msg">❌ ${json.error}</div>`;
+      return;
+    }
+    
+    formData = json.data;
+    renderApprovalUI();
+  } catch(e) {
+    card.innerHTML = '<div class="error-msg">❌ Gagal terhubung ke server. Silakan coba lagi.</div>';
+  }
+}
+
+function getStatusLabel(status) {
+  if (status === 'pending') return '⏳ Menunggu Approval (Tahap 1)';
+  if (status === 'approved1') return '✅ Disetujui Tahap 1 (Menunggu Tahap 2)';
+  if (status === 'approved2') return '✅ Disetujui Final';
+  if (status === 'rejected') return '❌ Ditolak';
+  return status;
+}
+
+function renderApprovalUI() {
+  const status = formData.approvalStatus;
+  
+  // Cek apakah user berhak melakukan aksi saat ini
+  let canAction = false;
+  let actionMessage = '';
+  
+  if (role === 1) {
+    if (status === 'pending') {
+      canAction = true;
+    } else {
+      actionMessage = 'Pengajuan ini sudah diproses (Status: ' + getStatusLabel(status) + ').';
+    }
+  } else if (role === 2) {
+    if (status === 'pending') {
+      actionMessage = 'Pengajuan ini masih menunggu persetujuan Tahap 1.';
+    } else if (status === 'approved1') {
+      canAction = true;
+    } else {
+      actionMessage = 'Pengajuan ini sudah diproses (Status: ' + getStatusLabel(status) + ').';
+    }
+  }
+
+  let html = `
+    <div class="header">
+      <h2>Permintaan Approval Peminjaman Mobil</h2>
+      <p>Tahap ${role} dari 2</p>
+    </div>
+    
+    <div class="status-banner ${status}">
+      Status Saat Ini: ${getStatusLabel(status)}
+    </div>
+    
+    <div class="body-content">
+      <table class="detail-table">
+        <tr><td>No. Form</td><td><strong>${formData.noForm}</strong></td></tr>
+        <tr><td>Tanggal Form</td><td>${formData.tanggalForm}</td></tr>
+        <tr><td>Nama Peminjam</td><td>${formData.nama}</td></tr>
+        <tr><td>Perusahaan</td><td>${formData.perusahaan}</td></tr>
+        <tr><td>Jabatan</td><td>${formData.jabatan}</td></tr>
+        <tr><td>Tujuan</td><td>${formData.tujuan}</td></tr>
+        <tr><td>Tgl Peminjaman</td><td>${formData.tglMulai} s/d ${formData.tglSelesai} (${formData.durasi} hari)</td></tr>
+        <tr><td>Lokasi Jemput</td><td>${formData.lokasiJemput}</td></tr>
+        <tr><td>Kendaraan</td><td>${formData.merk} (${formData.nopol})</td></tr>
+        <tr><td>Dengan Driver</td><td>${formData.denganDriver || '-'}</td></tr>
+        ${formData.fotoSimUrl ? `<tr><td>Foto SIM</td><td><a href="${formData.fotoSimUrl}" target="_blank" style="color:var(--blue);text-decoration:none;font-weight:600;">Lihat Foto SIM ↗</a></td></tr>` : ''}
+      </table>
+  `;
+  
+  if (status !== 'pending' && formData.approveNote1) {
+    html += `
+      <div class="note-box">
+        <strong>Catatan Approver 1:</strong><br/>
+        ${formData.approveNote1}
+      </div>
+    `;
+  }
+  if (status === 'approved2' || status === 'rejected') {
+    if (formData.approveNote2) {
+      html += `
+        <div class="note-box" style="border-left-color: var(--blue);">
+          <strong>Catatan Approver 2:</strong><br/>
+          ${formData.approveNote2}
+        </div>
+      `;
+    }
+  }
+
+  if (canAction) {
+    html += `
+      <div class="field" id="actionForm">
+        <label>Catatan (Opsional, wajib jika Ditolak)</label>
+        <textarea id="approverNote" placeholder="Tulis catatan persetujuan / alasan penolakan..."></textarea>
+      </div>
+      <div class="actions" id="actionButtons">
+        <button class="btn btn-reject" onclick="submitApproval('reject')">❌ Tolak</button>
+        <button class="btn btn-approve" onclick="submitApproval('approve')">✅ Setujui</button>
+      </div>
+      <div id="loadingAction" style="display:none; text-align:center; padding: 20px; font-weight: 600; color: #555;">
+        ⏳ Memproses dan mengirim email...
+      </div>
+    `;
+  } else {
+    html += `
+      <div style="text-align:center; padding: 20px; background: #f9f9f9; border-radius: 6px; color: #666;">
+        🔒 <strong>Tidak Ada Aksi Tersedia</strong><br/>
+        ${actionMessage}
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  document.getElementById('mainCard').innerHTML = html;
+}
+
+async function submitApproval(decision) {
+  const note = document.getElementById('approverNote').value.trim();
+  
+  if (decision === 'reject' && !note) {
+    alert('Catatan alasan penolakan wajib diisi!');
+    document.getElementById('approverNote').focus();
+    return;
+  }
+  
+  if (!confirm(`Anda yakin ingin ${decision === 'approve' ? 'MENYETUJUI' : 'MENOLAK'} permintaan ini?`)) {
+    return;
+  }
+
+  document.getElementById('actionForm').style.display = 'none';
+  document.getElementById('actionButtons').style.display = 'none';
+  document.getElementById('loadingAction').style.display = 'block';
+
+  const payload = {
+    action: 'submitApproval',
+    token: token,
+    role: role,
+    decision: decision,
+    approverNote: note
+  };
+
+  try {
+    const res = await fetch(CONFIG_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    
+    if (json.error) {
+      alert("Error: " + json.error);
+      location.reload();
+      return;
+    }
+    
+    alert(`Berhasil! Pengajuan telah ${decision === 'approve' ? 'disetujui' : 'ditolak'}.`);
+    location.reload(); // Refresh untuk melihat update status
+    
+  } catch(e) {
+    alert("Terjadi kesalahan jaringan.");
+    location.reload();
+  }
+}
+
+// Inisialisasi
+window.onload = loadData;
+
+</script>
+</body>
+</html>
