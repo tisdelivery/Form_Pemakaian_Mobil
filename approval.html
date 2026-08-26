@@ -158,7 +158,7 @@
     </div>
     <div style="display:flex;gap:8px;">
       <button id="adminUserMgmtBtn" class="btn btn-secondary" onclick="openUserMgmtModal()" style="display:none;">👥 Kelola User/Approver</button>
-      <button class="btn btn-orange" onclick="refreshData()">🔄 Refresh Data</button>
+      <button class="btn btn-orange" id="btnRefreshData" onclick="forceRefreshData()">🔄 Refresh Data</button>
     </div>
   </div>
 
@@ -240,8 +240,9 @@
     </div>
     <div class="modal-body">
       <div style="background:#f8f9fa;padding:14px;border-radius:6px;margin-bottom:16px;border:1px solid var(--line);">
-        <h4 style="font-size:13px;margin-bottom:10px;color:var(--orange);">➕ Tambah / Edit User Approver</h4>
+        <h4 style="font-size:13px;margin-bottom:10px;color:var(--orange);" id="userFormTitle">➕ Tambah / Edit User Approver</h4>
         <form onsubmit="handleSaveUser(event)">
+          <input type="hidden" id="u_edit_index" value="-1">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div class="form-group"><label>Nama Lengkap</label><input type="text" id="u_nama" required></div>
             <div class="form-group"><label>Username</label><input type="text" id="u_username" required></div>
@@ -256,7 +257,10 @@
               </select>
             </div>
           </div>
-          <button type="submit" class="btn btn-orange" style="margin-top:6px;">💾 Simpan User</button>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button type="submit" class="btn btn-orange" id="u_btn_submit">💾 Simpan User</button>
+            <button type="button" class="btn btn-ghost" id="u_btn_cancel" style="display:none;" onclick="resetUserForm()">Batal Edit</button>
+          </div>
         </form>
       </div>
 
@@ -313,9 +317,7 @@ window.onload = function() {
   const token = urlParams.get('token');
   const roleParam = urlParams.get('role');
 
-  // Jika diakses via Email Link (punya token)
   if(token) {
-    // Auto login sebagai role pembawa token jika belum login
     if(!sessionStorage.getItem('ism_current_user')) {
       const defaultRole = roleParam === '2' ? 'approver2' : 'approver1';
       currentUser = getUsers().find(u => u.role === defaultRole) || getUsers()[0];
@@ -342,9 +344,8 @@ function checkSession() {
       document.getElementById('adminUserMgmtBtn').style.display = 'none';
     }
 
-    refreshData();
+    loadDataWithCache();
 
-    // Jika ada token dari URL, langsung buka modal detailnya
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     if(token) {
@@ -376,27 +377,53 @@ function handleLogin(e) {
 
 function logout() {
   sessionStorage.removeItem('ism_current_user');
+  sessionStorage.removeItem('ism_submissions_cache');
   currentUser = null;
-  // Clear token query params if any
   window.history.replaceState({}, document.title, window.location.pathname);
   checkSession();
 }
 
 /* ============================================================
-   DATA FETCHING & RENDERING
+   DATA FETCHING & OPTIMIZED CACHING
    ============================================================ */
+function loadDataWithCache() {
+  const cached = sessionStorage.getItem('ism_submissions_cache');
+  if(cached) {
+    try {
+      allSubmissions = JSON.parse(cached);
+      updateStats();
+      filterData();
+      return;
+    } catch(e){}
+  }
+  refreshData();
+}
+
+function forceRefreshData() {
+  sessionStorage.removeItem('ism_submissions_cache');
+  refreshData();
+}
+
 async function refreshData() {
   const tbody = document.getElementById('submissionsTbody');
-  tbody.innerHTML = '<tr><td colspan="7" class="empty-state">⏳ Memuat data terbaru...</td></tr>';
+  const btn = document.getElementById('btnRefreshData');
+  if(btn) { btn.disabled = true; btn.textContent = '⌛ Loading...'; }
+
+  if(!allSubmissions || allSubmissions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">⏳ Memuat data dari Google Sheets... (sekitar 1-3 detik)</td></tr>';
+  }
   
   try {
     const res = await fetch(CONFIG_SCRIPT_URL + "?action=getSubmissionsList");
     const json = await res.json();
     allSubmissions = (json && json.data) ? json.data : [];
+    sessionStorage.setItem('ism_submissions_cache', JSON.stringify(allSubmissions));
     updateStats();
     filterData();
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:var(--red);">❌ Gagal mengambil data dari Google Apps Script.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:var(--red);">❌ Gagal mengambil data dari Google Apps Script. Coba klik Refresh Data.</td></tr>';
+  } finally {
+    if(btn) { btn.disabled = false; btn.textContent = '🔄 Refresh Data'; }
   }
 }
 
@@ -480,7 +507,7 @@ function renderTable(items) {
 async function openDetailByNoForm(noForm) {
   document.getElementById('detailModal').classList.add('open');
   document.getElementById('modalTitle').textContent = `Form ${noForm}`;
-  document.getElementById('modalBody').innerHTML = '⏳ Memuat detail data...';
+  document.getElementById('modalBody').innerHTML = '⏳ Memuat detail data dari Google Sheet...';
   document.getElementById('modalFoot').innerHTML = '<button class="btn btn-ghost" onclick="closeDetailModal()">Tutup</button>';
 
   try {
@@ -518,13 +545,12 @@ function renderModalDetail(d, tokenOverride, roleOverride) {
   const status = d.approvalStatus || 'pending';
   const token = d.token || tokenOverride;
   
-  // Tentukan apakah user saat ini bisa melakukan Approve/Reject
   let roleNumber = 1;
   if(currentUser.role === 'approver2') roleNumber = 2;
   if(roleOverride) roleNumber = parseInt(roleOverride);
 
   let canApprove = false;
-  if(currentUser.role === 'admin') canApprove = true; // Admin selalu bisa
+  if(currentUser.role === 'admin') canApprove = true;
   else if(roleNumber === 1 && status === 'pending') canApprove = true;
   else if(roleNumber === 2 && status === 'approved1') canApprove = true;
 
@@ -566,7 +592,6 @@ function renderModalDetail(d, tokenOverride, roleOverride) {
 
   document.getElementById('modalBody').innerHTML = bodyHtml;
 
-  // Footer Actions
   let footHtml = `<button class="btn btn-ghost" onclick="closeDetailModal()">Tutup</button>`;
   if(canApprove) {
     footHtml = `
@@ -612,14 +637,14 @@ async function submitApprovalAction(token, roleNum, decision) {
     
     if(json.error) {
       alert("Gagal: " + json.error);
-      refreshData();
+      forceRefreshData();
       closeDetailModal();
       return;
     }
     
     alert(`Berhasil! Pengajuan telah ${decision === 'approve' ? 'disetujui' : 'ditolak'}.`);
     closeDetailModal();
-    refreshData();
+    forceRefreshData();
   } catch(e) {
     alert("Terjadi kesalahan koneksi.");
     closeDetailModal();
@@ -627,10 +652,11 @@ async function submitApprovalAction(token, roleNum, decision) {
 }
 
 /* ============================================================
-   USER MANAGEMENT (ADMIN ONLY)
+   USER MANAGEMENT (WITH FULL EDIT SUPPORT)
    ============================================================ */
 function openUserMgmtModal() {
   document.getElementById('userMgmtModal').classList.add('open');
+  resetUserForm();
   renderUserList();
 }
 function closeUserMgmtModal() {
@@ -646,7 +672,8 @@ function renderUserList() {
       <td style="padding:6px;font-family:var(--mono);">${u.username}</td>
       <td style="padding:6px;"><span class="badge" style="background:#eee;color:#333;">${u.role}</span></td>
       <td style="padding:6px;text-align:right;">
-        ${u.username !== 'admin' ? `<button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" onclick="deleteUser(${i})">Hapus</button>` : '<em style="color:#aaa;">Master</em>'}
+        <button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;" onclick="editUser(${i})">✏️ Edit</button>
+        ${u.username !== 'admin' ? `<button class="btn btn-danger" style="padding:2px 8px;font-size:11px;margin-left:4px;" onclick="deleteUser(${i})">🗑️ Hapus</button>` : ''}
       </td>
     </tr>
   `).join('');
@@ -654,6 +681,7 @@ function renderUserList() {
 
 function handleSaveUser(e) {
   e.preventDefault();
+  const editIdx = parseInt(document.getElementById('u_edit_index').value);
   const nama = document.getElementById('u_nama').value.trim();
   const username = document.getElementById('u_username').value.trim();
   const password = document.getElementById('u_password').value.trim();
@@ -661,20 +689,61 @@ function handleSaveUser(e) {
   const role = document.getElementById('u_role').value;
 
   const users = getUsers();
-  users.push({ nama, username, password, email, role });
-  saveUsers(users);
 
-  alert(`User/Approver "${nama}" berhasil ditambahkan!`);
+  if(editIdx >= 0) {
+    // Mode EDIT
+    users[editIdx] = { nama, username, password, email, role };
+    saveUsers(users);
+    alert(`Data User "${nama}" berhasil diperbarui!`);
+  } else {
+    // Mode TAMBAH
+    // Cek username unik
+    if(users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+      alert(`Username "${username}" sudah digunakan! Silakan pilih username lain.`);
+      return;
+    }
+    users.push({ nama, username, password, email, role });
+    saveUsers(users);
+    alert(`User/Approver "${nama}" berhasil ditambahkan!`);
+  }
+
+  resetUserForm();
+  renderUserList();
+}
+
+function editUser(idx) {
+  const users = getUsers();
+  const u = users[idx];
+  if(!u) return;
+
+  document.getElementById('u_edit_index').value = idx;
+  document.getElementById('u_nama').value = u.nama;
+  document.getElementById('u_username').value = u.username;
+  document.getElementById('u_password').value = u.password;
+  document.getElementById('u_email').value = u.email;
+  document.getElementById('u_role').value = u.role;
+
+  document.getElementById('userFormTitle').textContent = `✏️ Edit User: ${u.nama}`;
+  document.getElementById('u_btn_submit').textContent = '💾 Update User';
+  document.getElementById('u_btn_cancel').style.display = 'inline-flex';
+}
+
+function resetUserForm() {
+  document.getElementById('u_edit_index').value = "-1";
   document.getElementById('u_nama').value = '';
   document.getElementById('u_username').value = '';
   document.getElementById('u_password').value = '';
   document.getElementById('u_email').value = '';
-  renderUserList();
+  document.getElementById('u_role').value = 'approver1';
+
+  document.getElementById('userFormTitle').textContent = '➕ Tambah User Approver Baru';
+  document.getElementById('u_btn_submit').textContent = '💾 Simpan User';
+  document.getElementById('u_btn_cancel').style.display = 'none';
 }
 
 function deleteUser(idx) {
-  if(!confirm("Hapus user ini?")) return;
   const users = getUsers();
+  if(!confirm(`Hapus user "${users[idx].nama}"?`)) return;
   users.splice(idx, 1);
   saveUsers(users);
   renderUserList();
