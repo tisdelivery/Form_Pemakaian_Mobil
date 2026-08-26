@@ -846,6 +846,13 @@ async function submitReturn(){
 
   document.getElementById('statusText').textContent = "Menyimpan ke Supabase...";
   const payload = collectReturnData();
+  
+  const parseNum = (val, fallback = 0) => {
+    if (!val) return fallback;
+    const n = parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+    return isNaN(n) ? fallback : n;
+  };
+
   const row = {
     no_form_ret: payload.noFormRet,
     tanggal_form_ret: payload.tanggalFormRet,
@@ -853,16 +860,16 @@ async function submitReturn(){
     ref_nama: payload.refNama,
     ref_perusahaan: payload.refPerusahaan,
     ref_nopol: payload.refNopol,
-    km_awal: payload.kmAwal ? parseFloat(payload.kmAwal) : 0,
-    km_akhir: payload.kmAkhir ? parseFloat(payload.kmAkhir) : 0,
-    km_tempuh: payload.kmTempuh ? parseFloat(payload.kmTempuh.replace(/[^0-9.-]/g, '')) : 0,
-    fuel_level_kembali: payload.fuelLevelKembali ? parseFloat(payload.fuelLevelKembali) : 50,
+    km_awal: parseNum(payload.kmAwal, 0),
+    km_akhir: parseNum(payload.kmAkhir, 0),
+    km_tempuh: parseNum(payload.kmTempuh, 0),
+    fuel_level_kembali: parseNum(payload.fuelLevelKembali, 50),
     kondisi_kembali: payload.kondisiKembali,
     tgl_kembali: payload.tglKembali,
     waktu_kembali: payload.waktuKembali,
     lokasi_kembali: payload.lokasiKembali,
     status_keterlambatan: payload.statusKeterlambatan,
-    selisih_hari: payload.selisihHari ? parseFloat(payload.selisihHari.replace(/[^0-9.-]/g, '')) : 0,
+    selisih_hari: parseNum(payload.selisihHari, 0),
     catatan_terlambat: payload.catatanTerlambat,
     nama_dari: payload.serahTerima.namaDari,
     jabatan_dari: payload.serahTerima.jabatanDari,
@@ -891,7 +898,7 @@ async function submitReturn(){
       document.getElementById(id).style.display = 'none';
     });
   }catch(err){
-    document.getElementById('statusText').textContent = "Gagal menyimpan ❌";
+    document.getElementById('statusText').textContent = "Gagal menyimpan ❌: " + (err.message || String(err));
     console.error(err);
   }
 }
