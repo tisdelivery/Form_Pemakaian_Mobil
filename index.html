@@ -721,7 +721,11 @@ async function cekKendaraanTersedia(){
     const activeLoans = (subs || []).filter(s => !returnedForms.has(s.no_form));
     if (activeLoans.length > 0) {
       const oldest = activeLoans[0];
-      return confirm(`⚠️ PERHATIAN: Kendaraan masih dalam status DIPINJAM\n\nPeminjam: ${oldest.nama||'-'}\nNo. Form: ${oldest.no_form||'-'}\nRencana kembali: ${oldest.tgl_selesai||'-'}\n\nLanjutkan submit peminjaman baru?`);
+      return await customConfirm(
+        "⚠️ Kendaraan Masih Dipinjam",
+        `Kendaraan saat ini masih dalam status DIPINJAM oleh:\n\nPeminjam: ${oldest.nama||'-'}\nNo. Form: ${oldest.no_form||'-'}\nRencana kembali: ${oldest.tgl_selesai||'-'}\n\nApakah Anda yakin ingin melanjutkan submit peminjaman baru?`,
+        "🚗"
+      );
     }
     return true;
   }catch(e){ return true; }
@@ -782,7 +786,7 @@ function toggleSuperUser(){
   }
 }
 async function resetVehicleStatus(){
-  if(!confirm("Reset status mobil menjadi 'Available' (Siap Pakai)?")) return;
+  if(!await customConfirm("🔄 Reset Status Mobil", "Reset status mobil menjadi 'Available' (Siap Pakai)?", "🚗")) return;
   document.getElementById('statusText').textContent = "Status mobil berhasil di-reset ke Available ✅";
   alert("Status mobil berhasil di-reset!");
 }
@@ -1265,8 +1269,8 @@ async function updateRecallData(){
   }
 }
 
-function exitRecallMode(){
-  if(recallMode && !confirm("Keluar dari mode edit dan mulai form baru? Perubahan yang belum disimpan akan hilang.")) return;
+async function exitRecallMode(){
+  if(recallMode && !await customConfirm("↩️ Form Baru", "Keluar dari mode edit dan mulai form baru? Perubahan yang belum disimpan akan hilang.", "⚠️")) return;
   location.reload();
 }
 

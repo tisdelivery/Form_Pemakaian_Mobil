@@ -656,7 +656,12 @@ async function submitApprovalAction(token, roleNum, decision) {
     return;
   }
 
-  if(!confirm(`Apakah Anda yakin ingin ${decision === 'approve' ? 'MENYETUJUI' : 'MENOLAK'} pengajuan ini?`)) return;
+  const isOk = await customConfirm(
+    "⚡ Konfirmasi Keputusan",
+    `Apakah Anda yakin ingin ${decision === 'approve' ? 'MENYETUJUI' : 'MENOLAK'} pengajuan peminjaman ini?`,
+    decision === 'approve' ? '✅' : '❌'
+  );
+  if(!isOk) return;
 
   document.getElementById('modalFoot').innerHTML = '⏳ Memproses keputusan...';
 
@@ -805,7 +810,7 @@ async function deleteUser(idx) {
   const users = getUsers();
   const target = users[idx];
   if(!target) return;
-  if(!confirm(`Hapus user "${target.nama}"?`)) return;
+  if(!await customConfirm("🗑️ Hapus User", `Apakah Anda yakin ingin menghapus user "${target.nama}"?`, "🗑️")) return;
 
   users.splice(idx, 1);
   saveUsers(users);
