@@ -3,256 +3,602 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Approval Peminjaman Mobil - Integra Solusi Mandiri</title>
+<title>Dashboard Approval Peminjaman Mobil - ISM</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
   
   :root {
     --red: #8a1116; --red-dark: #6e0d11; --orange: #f07d1a; --orange-2: #f5a623;
     --ink: #1f2226; --line: #c9ccd1; --bg: #eef0f2; --card: #ffffff;
-    --green: #1e7a3c; --blue: #1565c0;
+    --green: #1e7a3c; --blue: #1565c0; --purple: #6b21a8;
     --sans: 'Inter', 'Segoe UI', Arial, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    margin: 0; font-family: var(--sans); background: var(--bg); color: var(--ink);
+    font-family: var(--sans); background: var(--bg); color: var(--ink); font-size: 13px; min-height: 100vh;
   }
 
   /* TOOLBAR */
   .toolbar {
-    position: sticky; top: 0; z-index: 50; background: #20232a; color: #fff;
-    padding: 10px 16px; display: flex; gap: 10px; align-items: center;
+    position: sticky; top: 0; z-index: 100; background: #20232a; color: #fff;
+    padding: 12px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
   }
-  .toolbar .brand { font-weight: 700; font-size: 15px; letter-spacing: 1px; color: var(--orange); }
+  .toolbar .brand { font-weight: 700; font-size: 16px; letter-spacing: 1px; color: var(--orange); text-decoration: none; display: flex; align-items: center; gap: 8px;}
   .toolbar .brand span { color: #9aa0aa; font-weight: 400; font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+  .user-info { font-size: 12px; color: #c9ccd1; display: flex; align-items: center; gap: 8px; }
+  .user-badge { background: #3a3f47; color: #fff; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
   
-  .page-wrap { padding: 30px 12px 60px; display: flex; justify-content: center; }
-  .card {
-    width: 600px; max-width: 100%; background: var(--card);
-    box-shadow: 0 4px 24px rgba(0,0,0,.12); border-radius: 8px; overflow: hidden;
-  }
-  
-  .header {
-    background: var(--red); color: #fff; padding: 20px 24px; text-align: center;
-    position: relative;
-  }
-  .header h2 { margin: 0; font-size: 20px; letter-spacing: 0.5px; }
-  .header p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
-
-  .status-banner {
-    padding: 12px 24px; font-weight: 600; text-align: center; font-size: 14px;
-    border-bottom: 1px solid var(--line);
-  }
-  .status-banner.pending { background: #fff3cd; color: #856404; }
-  .status-banner.approved1 { background: #cfe2ff; color: #084298; }
-  .status-banner.approved2 { background: #d1e7dd; color: #0a3622; }
-  .status-banner.rejected { background: #f8d7da; color: #842029; }
-
-  .body-content { padding: 20px 24px; }
-  
-  .detail-table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-bottom: 24px; }
-  .detail-table td { padding: 10px 12px; border-bottom: 1px solid #eaeaea; }
-  .detail-table td:first-child { font-weight: 600; width: 35%; color: #555; background: #fafafa; }
-  
-  .field { margin-bottom: 16px; }
-  .field label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #333; }
-  .field textarea {
-    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px;
-    font-family: inherit; font-size: 13.5px; min-height: 80px; resize: vertical;
-  }
-  .field textarea:focus { outline: none; border-color: var(--orange); }
-
-  .actions { display: flex; gap: 12px; margin-top: 24px; }
   .btn {
-    flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600;
-    cursor: pointer; transition: 0.2s; color: #fff;
+    padding: 8px 14px; border: none; border-radius: 6px; font-weight: 600; font-size: 12px;
+    cursor: pointer; transition: 0.15s; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
   }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-approve { background: var(--green); }
-  .btn-approve:hover:not(:disabled) { background: #15622d; }
-  .btn-reject { background: var(--red); }
-  .btn-reject:hover:not(:disabled) { background: var(--red-dark); }
-  
-  .error-msg { text-align: center; color: var(--red); padding: 40px; font-weight: 600; }
-  .loading { text-align: center; padding: 40px; color: #666; font-weight: 500; }
+  .btn-orange { background: var(--orange); color: #fff; }
+  .btn-orange:hover { filter: brightness(1.1); }
+  .btn-secondary { background: #3a3f47; color: #fff; }
+  .btn-secondary:hover { background: #4b515d; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-danger:hover { background: var(--red-dark); }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-success:hover { filter: brightness(1.1); }
+  .btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+  .btn-ghost:hover { background: #e0e0e0; }
 
-  .note-box {
-    background: #fdf3e9; border-left: 4px solid var(--orange);
-    padding: 10px 14px; font-size: 13px; color: #5c3d10; margin-bottom: 20px;
-  }
+  /* CONTAINER */
+  .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+
+  /* DASHBOARD HEADER & STATS */
+  .dash-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  .dash-head h1 { font-size: 20px; font-weight: 700; color: #1f2226; }
+  
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .stat-card { background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 4px solid var(--orange); }
+  .stat-card.pending { border-left-color: var(--orange-2); }
+  .stat-card.approved1 { border-left-color: var(--blue); }
+  .stat-card.approved2 { border-left-color: var(--green); }
+  .stat-card.rejected { border-left-color: var(--red); }
+  .stat-val { font-size: 24px; font-weight: 700; margin-top: 4px; font-family: var(--mono); }
+  .stat-lbl { font-size: 11.5px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* FILTER BAR */
+  .filter-bar { background: #fff; padding: 14px 18px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .search-box { flex: 1; min-width: 220px; }
+  .search-box input { width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; outline: none; }
+  .search-box input:focus { border-color: var(--orange); }
+  
+  .tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+  .tab-btn { padding: 6px 12px; border: 1px solid var(--line); background: #f8f9fa; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #555; white-space: nowrap; }
+  .tab-btn.active { background: var(--orange); color: #fff; border-color: var(--orange); }
+
+  /* TABLE */
+  .table-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; text-align: left; }
+  th { background: #f4f5f7; padding: 12px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #555; border-bottom: 1px solid var(--line); font-family: var(--mono); }
+  td { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  tr:hover td { background: #fafafa; }
+  
+  .badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block; }
+  .badge.pending { background: #fff3cd; color: #856404; }
+  .badge.approved1 { background: #cfe2ff; color: #084298; }
+  .badge.approved2 { background: #d1e7dd; color: #0a3622; }
+  .badge.rejected { background: #f8d7da; color: #842029; }
+
+  /* MODALS */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 10px; width: 650px; max-width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden; }
+  .modal-head { padding: 16px 20px; background: #f8f9fa; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+  .modal-head h3 { font-size: 16px; margin: 0; color: var(--ink); }
+  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+  .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+  .modal-foot { padding: 14px 20px; background: #f8f9fa; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 10px; }
+
+  /* DETAIL TABLE */
+  .detail-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  .detail-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
+  .detail-table td:first-child { width: 35%; font-weight: 600; color: #666; background: #fafafa; }
+  
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 4px; color: #444; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; outline: none; font-family: inherit; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--orange); }
+
+  /* LOGIN CARD */
+  .login-wrap { display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 120px); padding: 20px; }
+  .login-card { background: #fff; width: 380px; max-width: 100%; padding: 28px; border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); text-align: center; }
+  .login-card h2 { color: var(--red); margin-bottom: 6px; font-size: 20px; }
+  .login-card p { color: #666; font-size: 12.5px; margin-bottom: 20px; }
+
+  .empty-state { text-align: center; padding: 40px; color: #888; }
 </style>
 </head>
 <body>
 
 <div class="toolbar">
-  <div class="brand">INTEGRA <span>SOLUSI MANDIRI</span></div>
+  <a href="index.html" class="brand">🚗 INTEGRA <span>/ Approval System</span></a>
+  <div class="spacer"></div>
+  <a href="index.html" class="btn btn-secondary">🏠 Ke Form Peminjaman</a>
+  <div id="userInfoArea" class="user-info" style="display:none;">
+    <span id="userName">User</span>
+    <span class="user-badge" id="userRole">Role</span>
+    <button class="btn btn-ghost" style="color:#fff;border-color:#555;" onclick="logout()">Logout</button>
+  </div>
 </div>
 
-<div class="page-wrap">
-  <div class="card" id="mainCard">
-    <div class="loading" id="loadingState">
-      ⏳ Memuat data form...
+<!-- ================= LOGIN SCREEN ================= -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <h2>🔐 Login Approver</h2>
+    <p>Silakan masuk dengan akun Approver / Admin Anda untuk memproses persetujuan.</p>
+    <form onsubmit="handleLogin(event)">
+      <div class="form-group" style="text-align:left;">
+        <label>Username / Email</label>
+        <input type="text" id="loginUser" placeholder="Masukkan username..." required autocomplete="username">
+      </div>
+      <div class="form-group" style="text-align:left;">
+        <label>Password / PIN</label>
+        <input type="password" id="loginPass" placeholder="Masukkan password..." required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-orange" style="width:100%;padding:10px;justify-content:center;margin-top:10px;">
+        🔑 Masuk Dashboard
+      </button>
+    </form>
+    <div id="loginError" style="color:var(--red);font-size:12px;margin-top:12px;display:none;">Username atau Password salah!</div>
+  </div>
+</div>
+
+<!-- ================= MAIN DASHBOARD ================= -->
+<div id="dashboardScreen" class="container" style="display:none;">
+  
+  <div class="dash-head">
+    <div>
+      <h1>Dashboard Approval Peminjaman</h1>
+      <span style="color:#666;font-size:12.5px;">Kelola dan proses pengajuan peminjaman mobil dinas.</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="adminUserMgmtBtn" class="btn btn-secondary" onclick="openUserMgmtModal()" style="display:none;">👥 Kelola User/Approver</button>
+      <button class="btn btn-orange" onclick="refreshData()">🔄 Refresh Data</button>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card pending">
+      <div class="stat-lbl">Menunggu Tahap 1</div>
+      <div class="stat-val" id="cntPending">0</div>
+    </div>
+    <div class="stat-card approved1">
+      <div class="stat-lbl">Menunggu Tahap 2</div>
+      <div class="stat-val" id="cntApproved1">0</div>
+    </div>
+    <div class="stat-card approved2">
+      <div class="stat-lbl">Disetujui Final</div>
+      <div class="stat-val" id="cntApproved2">0</div>
+    </div>
+    <div class="stat-card rejected">
+      <div class="stat-lbl">Ditolak</div>
+      <div class="stat-val" id="cntRejected">0</div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="🔍 Cari No Form, Nama Peminjam, atau Nopol..." oninput="filterData()">
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-status="ALL" onclick="setTab('ALL')">Semua</button>
+      <button class="tab-btn" data-status="pending" onclick="setTab('pending')">Pending (Tahap 1)</button>
+      <button class="tab-btn" data-status="approved1" onclick="setTab('approved1')">Approve Tahap 1</button>
+      <button class="tab-btn" data-status="approved2" onclick="setTab('approved2')">Disetujui Final</button>
+      <button class="tab-btn" data-status="rejected" onclick="setTab('rejected')">Ditolak</button>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>No. Form</th>
+          <th>Tgl Form</th>
+          <th>Nama Peminjam</th>
+          <th>Perusahaan</th>
+          <th>Nopol</th>
+          <th>Status</th>
+          <th style="text-align:right;">Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="submissionsTbody">
+        <tr><td colspan="7" class="empty-state">⏳ Memuat data dari server...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ================= MODAL DETAIL & APPROVAL ================= -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">Detail Form Peminjaman</h3>
+      <button class="modal-close" onclick="closeDetailModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      ⏳ Memuat detail...
+    </div>
+    <div class="modal-foot" id="modalFoot">
+      <button class="btn btn-ghost" onclick="closeDetailModal()">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL KELOLA USER / APPROVER (ADMIN ONLY) ================= -->
+<div class="modal-overlay" id="userMgmtModal">
+  <div class="modal" style="width:700px;">
+    <div class="modal-head">
+      <h3>👥 Kelola User &amp; Approver</h3>
+      <button class="modal-close" onclick="closeUserMgmtModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#f8f9fa;padding:14px;border-radius:6px;margin-bottom:16px;border:1px solid var(--line);">
+        <h4 style="font-size:13px;margin-bottom:10px;color:var(--orange);">➕ Tambah / Edit User Approver</h4>
+        <form onsubmit="handleSaveUser(event)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="u_nama" required></div>
+            <div class="form-group"><label>Username</label><input type="text" id="u_username" required></div>
+            <div class="form-group"><label>Password</label><input type="text" id="u_password" required></div>
+            <div class="form-group"><label>Email</label><input type="email" id="u_email" required></div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Role Hak Akses</label>
+              <select id="u_role">
+                <option value="approver1">Approver 1 (Atasan / SPV - Persetujuan Tahap 1)</option>
+                <option value="approver2">Approver 2 (GA / HRD - Persetujuan Final)</option>
+                <option value="admin">Super Admin (Akses Penuh + Kelola User)</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-orange" style="margin-top:6px;">💾 Simpan User</button>
+        </form>
+      </div>
+
+      <h4 style="font-size:13px;margin-bottom:8px;">📋 Daftar User Terdaftar</h4>
+      <table style="width:100%;font-size:12px;">
+        <thead>
+          <tr style="background:#efefef;">
+            <th style="padding:6px;">Nama</th>
+            <th style="padding:6px;">Username</th>
+            <th style="padding:6px;">Role</th>
+            <th style="padding:6px;text-align:right;">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="userListTbody"></tbody>
+      </table>
     </div>
   </div>
 </div>
 
 <script>
-// KONFIGURASI SCRIPT URL (PASTIKAN SAMA DENGAN INDEX.HTML)
+/* ============================================================
+   KONFIGURASI & STORAGE AKUN
+   ============================================================ */
 const CONFIG_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec";
 
-const urlParams = new URLSearchParams(window.location.search);
-const token = urlParams.get('token');
-const role = parseInt(urlParams.get('role') || '1');
+// Default Accounts jika belum ada di localStorage
+const DEFAULT_USERS = [
+  { username: 'admin', password: 'integra2026', nama: 'Super Admin', role: 'admin', email: 'admin@integrasolution.id' },
+  { username: 'approver1', password: 'approver123', nama: 'Pak Sanny (Approver 1)', role: 'approver1', email: 'sanny.anshory@integrasolution.id' },
+  { username: 'approver2', password: 'approver123', nama: 'Ibu Devry (Approver 2)', role: 'approver2', email: 'devry.handayani@integrasolution.id' }
+];
 
-let formData = null;
+function getUsers() {
+  const saved = localStorage.getItem('ism_approver_users');
+  if(!saved) {
+    localStorage.setItem('ism_approver_users', JSON.stringify(DEFAULT_USERS));
+    return DEFAULT_USERS;
+  }
+  return JSON.parse(saved);
+}
+function saveUsers(users) {
+  localStorage.setItem('ism_approver_users', JSON.stringify(users));
+}
 
-async function loadData() {
-  const card = document.getElementById('mainCard');
-  if (!token) {
-    card.innerHTML = '<div class="error-msg">⚠️ Token tidak valid atau tidak ditemukan.</div>';
+let currentUser = null;
+let allSubmissions = [];
+let activeTab = 'ALL';
+
+/* ============================================================
+   INIT & AUTHENTICATION
+   ============================================================ */
+window.onload = function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+  const roleParam = urlParams.get('role');
+
+  // Jika diakses via Email Link (punya token)
+  if(token) {
+    // Auto login sebagai role pembawa token jika belum login
+    if(!sessionStorage.getItem('ism_current_user')) {
+      const defaultRole = roleParam === '2' ? 'approver2' : 'approver1';
+      currentUser = getUsers().find(u => u.role === defaultRole) || getUsers()[0];
+      sessionStorage.setItem('ism_current_user', JSON.stringify(currentUser));
+    }
+  }
+
+  checkSession();
+};
+
+function checkSession() {
+  const saved = sessionStorage.getItem('ism_current_user');
+  if(saved) {
+    currentUser = JSON.parse(saved);
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboardScreen').style.display = 'block';
+    document.getElementById('userInfoArea').style.display = 'flex';
+    document.getElementById('userName').textContent = currentUser.nama;
+    document.getElementById('userRole').textContent = currentUser.role.toUpperCase();
+    
+    if(currentUser.role === 'admin') {
+      document.getElementById('adminUserMgmtBtn').style.display = 'inline-flex';
+    } else {
+      document.getElementById('adminUserMgmtBtn').style.display = 'none';
+    }
+
+    refreshData();
+
+    // Jika ada token dari URL, langsung buka modal detailnya
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if(token) {
+      openDetailByToken(token, urlParams.get('role') || '1');
+    }
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('dashboardScreen').style.display = 'none';
+    document.getElementById('userInfoArea').style.display = 'none';
+  }
+}
+
+function handleLogin(e) {
+  e.preventDefault();
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value.trim();
+  const users = getUsers();
+  
+  const found = users.find(user => (user.username === u || user.email === u) && user.password === p);
+  if(found) {
+    currentUser = found;
+    sessionStorage.setItem('ism_current_user', JSON.stringify(currentUser));
+    document.getElementById('loginError').style.display = 'none';
+    checkSession();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('ism_current_user');
+  currentUser = null;
+  // Clear token query params if any
+  window.history.replaceState({}, document.title, window.location.pathname);
+  checkSession();
+}
+
+/* ============================================================
+   DATA FETCHING & RENDERING
+   ============================================================ */
+async function refreshData() {
+  const tbody = document.getElementById('submissionsTbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="empty-state">⏳ Memuat data terbaru...</td></tr>';
+  
+  try {
+    const res = await fetch(CONFIG_SCRIPT_URL + "?action=getSubmissionsList");
+    const json = await res.json();
+    allSubmissions = (json && json.data) ? json.data : [];
+    updateStats();
+    filterData();
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:var(--red);">❌ Gagal mengambil data dari Google Apps Script.</td></tr>';
+  }
+}
+
+function updateStats() {
+  let pending = 0, app1 = 0, app2 = 0, rej = 0;
+  allSubmissions.forEach(s => {
+    const st = s.approvalStatus || 'pending';
+    if(st === 'pending') pending++;
+    else if(st === 'approved1') app1++;
+    else if(st === 'approved2') app2++;
+    else if(st === 'rejected') rej++;
+  });
+  document.getElementById('cntPending').textContent = pending;
+  document.getElementById('cntApproved1').textContent = app1;
+  document.getElementById('cntApproved2').textContent = app2;
+  document.getElementById('cntRejected').textContent = rej;
+}
+
+function setTab(status) {
+  activeTab = status;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.status === status));
+  filterData();
+}
+
+function filterData() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  
+  const filtered = allSubmissions.filter(item => {
+    const st = item.approvalStatus || 'pending';
+    if(activeTab !== 'ALL' && st !== activeTab) return false;
+    
+    if(q) {
+      const match = (item.noForm||'').toLowerCase().includes(q) ||
+                    (item.nama||'').toLowerCase().includes(q) ||
+                    (item.nopol||'').toLowerCase().includes(q) ||
+                    (item.perusahaan||'').toLowerCase().includes(q);
+      if(!match) return false;
+    }
+    return true;
+  });
+
+  renderTable(filtered);
+}
+
+function getStatusBadge(st) {
+  st = st || 'pending';
+  if(st === 'pending') return '<span class="badge pending">⏳ Menunggu Tahap 1</span>';
+  if(st === 'approved1') return '<span class="badge approved1">✅ Approve Tahap 1</span>';
+  if(st === 'approved2') return '<span class="badge approved2">✅ Disetujui Final</span>';
+  if(st === 'rejected') return '<span class="badge rejected">❌ Ditolak</span>';
+  return `<span class="badge">${st}</span>`;
+}
+
+function renderTable(items) {
+  const tbody = document.getElementById('submissionsTbody');
+  if(!items || items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Tidak ada data ditemukan.</td></tr>';
     return;
   }
 
+  tbody.innerHTML = items.map(item => `
+    <tr>
+      <td><strong style="font-family:var(--mono);color:var(--red);">${item.noForm}</strong></td>
+      <td>${item.tanggalForm || '-'}</td>
+      <td><strong>${item.nama}</strong></td>
+      <td>${item.perusahaan || '-'}</td>
+      <td><span style="font-family:var(--mono);">${item.nopol || '-'}</span></td>
+      <td>${getStatusBadge(item.approvalStatus)}</td>
+      <td style="text-align:right;">
+        <button class="btn btn-orange" style="padding:4px 10px;font-size:11px;" onclick="openDetailByNoForm('${item.noForm}')">
+          👁️ Detail &amp; Aksi
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+/* ============================================================
+   DETAIL & APPROVAL ACTION MODAL
+   ============================================================ */
+async function openDetailByNoForm(noForm) {
+  document.getElementById('detailModal').classList.add('open');
+  document.getElementById('modalTitle').textContent = `Form ${noForm}`;
+  document.getElementById('modalBody').innerHTML = '⏳ Memuat detail data...';
+  document.getElementById('modalFoot').innerHTML = '<button class="btn btn-ghost" onclick="closeDetailModal()">Tutup</button>';
+
+  try {
+    const res = await fetch(CONFIG_SCRIPT_URL + "?action=getSubmissionByNoForm&noForm=" + encodeURIComponent(noForm));
+    const json = await res.json();
+    if(json.error) {
+      document.getElementById('modalBody').innerHTML = `<div style="color:var(--red);">${json.error}</div>`;
+      return;
+    }
+    renderModalDetail(json.data);
+  } catch(e) {
+    document.getElementById('modalBody').innerHTML = '<div style="color:var(--red);">Gagal terhubung ke server.</div>';
+  }
+}
+
+async function openDetailByToken(token, roleParam) {
+  document.getElementById('detailModal').classList.add('open');
+  document.getElementById('modalTitle').textContent = `Detail Approval Form`;
+  document.getElementById('modalBody').innerHTML = '⏳ Memuat detail data...';
+  
   try {
     const res = await fetch(CONFIG_SCRIPT_URL + "?action=getApprovalData&token=" + encodeURIComponent(token));
     const json = await res.json();
-    
-    if (json.error) {
-      card.innerHTML = `<div class="error-msg">❌ ${json.error}</div>`;
+    if(json.error) {
+      document.getElementById('modalBody').innerHTML = `<div style="color:var(--red);">${json.error}</div>`;
       return;
     }
-    
-    formData = json.data;
-    renderApprovalUI();
+    renderModalDetail(json.data, token, roleParam);
   } catch(e) {
-    card.innerHTML = '<div class="error-msg">❌ Gagal terhubung ke server. Silakan coba lagi.</div>';
+    document.getElementById('modalBody').innerHTML = '<div style="color:var(--red);">Gagal terhubung ke server.</div>';
   }
 }
 
-function getStatusLabel(status) {
-  if (status === 'pending') return '⏳ Menunggu Approval (Tahap 1)';
-  if (status === 'approved1') return '✅ Disetujui Tahap 1 (Menunggu Tahap 2)';
-  if (status === 'approved2') return '✅ Disetujui Final';
-  if (status === 'rejected') return '❌ Ditolak';
-  return status;
-}
-
-function renderApprovalUI() {
-  const status = formData.approvalStatus;
+function renderModalDetail(d, tokenOverride, roleOverride) {
+  const status = d.approvalStatus || 'pending';
+  const token = d.token || tokenOverride;
   
-  // Cek apakah user berhak melakukan aksi saat ini
-  let canAction = false;
-  let actionMessage = '';
-  
-  if (role === 1) {
-    if (status === 'pending') {
-      canAction = true;
-    } else {
-      actionMessage = 'Pengajuan ini sudah diproses (Status: ' + getStatusLabel(status) + ').';
-    }
-  } else if (role === 2) {
-    if (status === 'pending') {
-      actionMessage = 'Pengajuan ini masih menunggu persetujuan Tahap 1.';
-    } else if (status === 'approved1') {
-      canAction = true;
-    } else {
-      actionMessage = 'Pengajuan ini sudah diproses (Status: ' + getStatusLabel(status) + ').';
-    }
-  }
+  // Tentukan apakah user saat ini bisa melakukan Approve/Reject
+  let roleNumber = 1;
+  if(currentUser.role === 'approver2') roleNumber = 2;
+  if(roleOverride) roleNumber = parseInt(roleOverride);
 
-  let html = `
-    <div class="header">
-      <h2>Permintaan Approval Peminjaman Mobil</h2>
-      <p>Tahap ${role} dari 2</p>
+  let canApprove = false;
+  if(currentUser.role === 'admin') canApprove = true; // Admin selalu bisa
+  else if(roleNumber === 1 && status === 'pending') canApprove = true;
+  else if(roleNumber === 2 && status === 'approved1') canApprove = true;
+
+  let bodyHtml = `
+    <div style="margin-bottom:12px;">
+      ${getStatusBadge(status)}
     </div>
-    
-    <div class="status-banner ${status}">
-      Status Saat Ini: ${getStatusLabel(status)}
-    </div>
-    
-    <div class="body-content">
-      <table class="detail-table">
-        <tr><td>No. Form</td><td><strong>${formData.noForm}</strong></td></tr>
-        <tr><td>Tanggal Form</td><td>${formData.tanggalForm}</td></tr>
-        <tr><td>Nama Peminjam</td><td>${formData.nama}</td></tr>
-        <tr><td>Perusahaan</td><td>${formData.perusahaan}</td></tr>
-        <tr><td>Jabatan</td><td>${formData.jabatan}</td></tr>
-        <tr><td>Tujuan</td><td>${formData.tujuan}</td></tr>
-        <tr><td>Tgl Peminjaman</td><td>${formData.tglMulai} s/d ${formData.tglSelesai} (${formData.durasi} hari)</td></tr>
-        <tr><td>Lokasi Jemput</td><td>${formData.lokasiJemput}</td></tr>
-        <tr><td>Kendaraan</td><td>${formData.merk} (${formData.nopol})</td></tr>
-        <tr><td>Dengan Driver</td><td>${formData.denganDriver || '-'}</td></tr>
-        ${formData.fotoSimUrl ? `<tr><td>Foto SIM</td><td><a href="${formData.fotoSimUrl}" target="_blank" style="color:var(--blue);text-decoration:none;font-weight:600;">Lihat Foto SIM ↗</a></td></tr>` : ''}
-      </table>
+    <table class="detail-table">
+      <tr><td>No. Form</td><td><strong>${d.noForm}</strong></td></tr>
+      <tr><td>Tgl Form</td><td>${d.tanggalForm}</td></tr>
+      <tr><td>Nama Peminjam</td><td>${d.nama} (${d.email})</td></tr>
+      <tr><td>Perusahaan / Jabatan</td><td>${d.perusahaan || '-'} / ${d.jabatan || '-'}</td></tr>
+      <tr><td>Tujuan Pemakaian</td><td>${d.tujuan}</td></tr>
+      <tr><td>Jadwal Peminjaman</td><td>${d.tglMulai} s/d ${d.tglSelesai} (${d.durasi} Hari)</td></tr>
+      <tr><td>Lokasi Jemput/Kembali</td><td>${d.lokasiJemput} ➔ ${d.lokasiKembali}</td></tr>
+      <tr><td>Kendaraan</td><td>${d.merk} (${d.nopol}) - ${d.warna}</td></tr>
+      <tr><td>KM Awal / Level Bensin</td><td>${d.kmAwal} KM / Bensin ${d.levelBensin}%</td></tr>
+      ${d.fotoSimUrl ? `<tr><td>Foto SIM</td><td><a href="${d.fotoSimUrl}" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:none;">📷 Lihat Foto SIM ke Drive ↗</a></td></tr>` : ''}
+    </table>
   `;
-  
-  if (status !== 'pending' && formData.approveNote1) {
-    html += `
-      <div class="note-box">
-        <strong>Catatan Approver 1:</strong><br/>
-        ${formData.approveNote1}
-      </div>
-    `;
-  }
-  if (status === 'approved2' || status === 'rejected') {
-    if (formData.approveNote2) {
-      html += `
-        <div class="note-box" style="border-left-color: var(--blue);">
-          <strong>Catatan Approver 2:</strong><br/>
-          ${formData.approveNote2}
-        </div>
-      `;
-    }
-  }
 
-  if (canAction) {
-    html += `
-      <div class="field" id="actionForm">
-        <label>Catatan (Opsional, wajib jika Ditolak)</label>
-        <textarea id="approverNote" placeholder="Tulis catatan persetujuan / alasan penolakan..."></textarea>
-      </div>
-      <div class="actions" id="actionButtons">
-        <button class="btn btn-reject" onclick="submitApproval('reject')">❌ Tolak</button>
-        <button class="btn btn-approve" onclick="submitApproval('approve')">✅ Setujui</button>
-      </div>
-      <div id="loadingAction" style="display:none; text-align:center; padding: 20px; font-weight: 600; color: #555;">
-        ⏳ Memproses dan mengirim email...
+  if(canApprove) {
+    bodyHtml += `
+      <div style="background:#fdf8f2;border:1px solid var(--orange);padding:14px;border-radius:8px;margin-top:16px;">
+        <h4 style="color:var(--orange);margin-bottom:8px;font-size:13px;">⚡ Keputusan Approval (Bertindak sebagai Tahap ${roleNumber})</h4>
+        <div class="form-group">
+          <label>Catatan Approver (Wajib diisi jika MENOLAK)</label>
+          <textarea id="appNote" placeholder="Tuliskan alasan penolakan / catatan persetujuan di sini..."></textarea>
+        </div>
       </div>
     `;
   } else {
-    html += `
-      <div style="text-align:center; padding: 20px; background: #f9f9f9; border-radius: 6px; color: #666;">
-        🔒 <strong>Tidak Ada Aksi Tersedia</strong><br/>
-        ${actionMessage}
+    bodyHtml += `
+      <div style="background:#f5f5f5;padding:12px;border-radius:6px;color:#666;font-size:12px;margin-top:14px;">
+        ℹ️ Status form ini saat ini: <strong>${status}</strong>. Tidak memerlukan aksi approval dari akun Anda saat ini.
       </div>
     `;
   }
 
-  html += `</div>`;
-  document.getElementById('mainCard').innerHTML = html;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+
+  // Footer Actions
+  let footHtml = `<button class="btn btn-ghost" onclick="closeDetailModal()">Tutup</button>`;
+  if(canApprove) {
+    footHtml = `
+      <button class="btn btn-ghost" onclick="closeDetailModal()">Batal</button>
+      <button class="btn btn-danger" onclick="submitApprovalAction('${token}', ${roleNumber}, 'reject')">❌ Tolak Pengajuan</button>
+      <button class="btn btn-success" onclick="submitApprovalAction('${token}', ${roleNumber}, 'approve')">✅ Setujui Pengajuan</button>
+    `;
+  }
+  document.getElementById('modalFoot').innerHTML = footHtml;
 }
 
-async function submitApproval(decision) {
-  const note = document.getElementById('approverNote').value.trim();
+function closeDetailModal() {
+  document.getElementById('detailModal').classList.remove('open');
+}
+
+async function submitApprovalAction(token, roleNum, decision) {
+  const note = (document.getElementById('appNote') ? document.getElementById('appNote').value : '').trim();
   
-  if (decision === 'reject' && !note) {
-    alert('Catatan alasan penolakan wajib diisi!');
-    document.getElementById('approverNote').focus();
-    return;
-  }
-  
-  if (!confirm(`Anda yakin ingin ${decision === 'approve' ? 'MENYETUJUI' : 'MENOLAK'} permintaan ini?`)) {
+  if(decision === 'reject' && !note) {
+    alert('Catatan wajib diisi saat menolak pengajuan!');
+    document.getElementById('appNote').focus();
     return;
   }
 
-  document.getElementById('actionForm').style.display = 'none';
-  document.getElementById('actionButtons').style.display = 'none';
-  document.getElementById('loadingAction').style.display = 'block';
+  if(!confirm(`Apakah Anda yakin ingin ${decision === 'approve' ? 'MENYETUJUI' : 'MENOLAK'} pengajuan ini?`)) return;
+
+  document.getElementById('modalFoot').innerHTML = '⏳ Memproses keputusan & mengirim email...';
 
   const payload = {
     action: 'submitApproval',
     token: token,
-    role: role,
+    role: roleNum,
     decision: decision,
     approverNote: note
   };
@@ -264,24 +610,75 @@ async function submitApproval(decision) {
     });
     const json = await res.json();
     
-    if (json.error) {
-      alert("Error: " + json.error);
-      location.reload();
+    if(json.error) {
+      alert("Gagal: " + json.error);
+      refreshData();
+      closeDetailModal();
       return;
     }
     
     alert(`Berhasil! Pengajuan telah ${decision === 'approve' ? 'disetujui' : 'ditolak'}.`);
-    location.reload(); // Refresh untuk melihat update status
-    
+    closeDetailModal();
+    refreshData();
   } catch(e) {
-    alert("Terjadi kesalahan jaringan.");
-    location.reload();
+    alert("Terjadi kesalahan koneksi.");
+    closeDetailModal();
   }
 }
 
-// Inisialisasi
-window.onload = loadData;
+/* ============================================================
+   USER MANAGEMENT (ADMIN ONLY)
+   ============================================================ */
+function openUserMgmtModal() {
+  document.getElementById('userMgmtModal').classList.add('open');
+  renderUserList();
+}
+function closeUserMgmtModal() {
+  document.getElementById('userMgmtModal').classList.remove('open');
+}
 
+function renderUserList() {
+  const users = getUsers();
+  const tbody = document.getElementById('userListTbody');
+  tbody.innerHTML = users.map((u, i) => `
+    <tr>
+      <td style="padding:6px;"><strong>${u.nama}</strong><br><span style="color:#888;">${u.email}</span></td>
+      <td style="padding:6px;font-family:var(--mono);">${u.username}</td>
+      <td style="padding:6px;"><span class="badge" style="background:#eee;color:#333;">${u.role}</span></td>
+      <td style="padding:6px;text-align:right;">
+        ${u.username !== 'admin' ? `<button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" onclick="deleteUser(${i})">Hapus</button>` : '<em style="color:#aaa;">Master</em>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function handleSaveUser(e) {
+  e.preventDefault();
+  const nama = document.getElementById('u_nama').value.trim();
+  const username = document.getElementById('u_username').value.trim();
+  const password = document.getElementById('u_password').value.trim();
+  const email = document.getElementById('u_email').value.trim();
+  const role = document.getElementById('u_role').value;
+
+  const users = getUsers();
+  users.push({ nama, username, password, email, role });
+  saveUsers(users);
+
+  alert(`User/Approver "${nama}" berhasil ditambahkan!`);
+  document.getElementById('u_nama').value = '';
+  document.getElementById('u_username').value = '';
+  document.getElementById('u_password').value = '';
+  document.getElementById('u_email').value = '';
+  renderUserList();
+}
+
+function deleteUser(idx) {
+  if(!confirm("Hapus user ini?")) return;
+  const users = getUsers();
+  users.splice(idx, 1);
+  saveUsers(users);
+  renderUserList();
+}
 </script>
 </body>
 </html>
