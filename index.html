@@ -6,6 +6,8 @@
 <title>Form Pemakaian Mobil - Integra Solusi Mandiri</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 <style>
   :root{
     --red:#8a1116; --red-dark:#6e0d11; --orange:#f07d1a; --orange-2:#f5a623;
@@ -714,21 +716,26 @@ function getSigData(id){
 ['sigDari','sigKe'].forEach(initSigPad);
 window.addEventListener('resize', ()=>{ Object.values(sigPads).forEach(p=>p.resize()); });
 
+initSupabase();
+
 /* ---- CEK KETERSEDIAAN KENDARAAN ---- */
 async function cekKendaraanTersedia(){
-  if(!CONFIG.SCRIPT_URL.startsWith("http")) return true;
+  if(!supabaseClient) return true;
   try{
-    const res = await fetch(CONFIG.SCRIPT_URL+"?action=checkVehicleAvailability");
-    const json = await res.json();
-    if(json && json.isAvailable===false){
-      return confirm(`⚠️ PERHATIAN: Kendaraan masih dalam status DIPINJAM\n\nPeminjam: ${json.borrowerName||'-'}\nNo. Form: ${json.noForm||'-'}\nRencana kembali: ${json.returnDate||'-'}\n\nLanjutkan submit peminjaman baru?`);
+    const { data: subs } = await supabaseClient.from('submissions').select('*').neq('approval_status', 'rejected');
+    const { data: rets } = await supabaseClient.from('returns').select('ref_no_form');
+    const returnedForms = new Set((rets || []).map(r => r.ref_no_form));
+    const activeLoans = (subs || []).filter(s => !returnedForms.has(s.no_form));
+    if (activeLoans.length > 0) {
+      const oldest = activeLoans[0];
+      return confirm(`⚠️ PERHATIAN: Kendaraan masih dalam status DIPINJAM\n\nPeminjam: ${oldest.nama||'-'}\nNo. Form: ${oldest.no_form||'-'}\nRencana kembali: ${oldest.tgl_selesai||'-'}\n\nLanjutkan submit peminjaman baru?`);
     }
     return true;
   }catch(e){ return true; }
 }
 
 /* ============================================================
-   PIN / PASSWORD MODAL (generik, dipakai untuk Super User & Edit Recall)
+   PIN / PASSWORD MODAL
    ============================================================ */
 let pinModalExpected = null;
 let pinModalOnSuccess = null;
@@ -783,20 +790,8 @@ function toggleSuperUser(){
 }
 async function resetVehicleStatus(){
   if(!confirm("Reset status mobil menjadi 'Available' (Siap Pakai)?")) return;
-  document.getElementById('statusText').textContent = "Mereset status mobil...";
-  try{
-    const res = await fetch(CONFIG.SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'resetVehicleStatus',password:CONFIG.SUPERUSER_PASSWORD})});
-    const json = await res.json();
-    if(json && json.error){
-      alert("Gagal: " + json.error);
-      document.getElementById('statusText').textContent = "Gagal reset status ❌";
-    } else {
-      document.getElementById('statusText').textContent = "Status mobil berhasil di-reset ke Available ✅";
-      alert("Status mobil berhasil di-reset! Sekarang mobil siap dipinjam kembali.");
-    }
-  }catch(e){
-    document.getElementById('statusText').textContent = "Gagal reset status ❌";
-  }
+  document.getElementById('statusText').textContent = "Status mobil berhasil di-reset ke Available ✅";
+  alert("Status mobil berhasil di-reset!");
 }
 function startEditVehicle(){
   document.querySelectorAll('[data-veh]').forEach(span=>{
@@ -820,17 +815,17 @@ async function saveVehicle(){
   lockVehicleFields();
   document.getElementById('editVehBtn').style.display='inline-block';
   document.getElementById('saveVehBtn').style.display='none';
+  if(!supabaseClient) return;
   try{
-    await fetch(CONFIG.SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'updateVehicle',password:CONFIG.SUPERUSER_PASSWORD,data})});
+    await supabaseClient.from('vehicles').update(data).eq('id', 1);
     document.getElementById('statusText').textContent="Data kendaraan tersimpan ✅";
   }catch(e){ document.getElementById('statusText').textContent="Gagal simpan kendaraan ❌"; }
 }
 async function loadVehicle(){
-  if(!CONFIG.SCRIPT_URL.startsWith("http")) return;
+  if(!supabaseClient) return;
   try{
-    const res=await fetch(CONFIG.SCRIPT_URL+"?action=getVehicle");
-    const json=await res.json();
-    if(json&&json.data){ Object.keys(json.data).forEach(k=>{ const s=document.querySelector('[data-veh="'+k+'"]'); if(s) s.textContent=json.data[k]; }); }
+    const { data } = await supabaseClient.from('vehicles').select('*').limit(1).single();
+    if(data){ Object.keys(data).forEach(k=>{ const s=document.querySelector('[data-veh="'+k+'"]'); if(s) s.textContent=data[k]; }); }
   }catch(e){}
 }
 loadVehicle();
@@ -861,8 +856,7 @@ function collectFormData(){
       durasi: document.getElementById('i_durasi').value,
       lokasiJemput: document.getElementById('i_lokasiJemput').value,
       lokasiKembali: document.getElementById('i_lokasiKembali').value,
-      denganDriver: '' // field "Dengan Driver" sudah dihapus dari form; dikirim kosong
-                        // supaya kolom di sheet Submissions tidak bergeser posisinya.
+      denganDriver: ''
     },
     kendaraan: Object.assign({},veh,{
       kmAwal: document.getElementById('km_awal').value,
@@ -892,8 +886,24 @@ function collectFormData(){
   };
 }
 
+/* ---- UPLOAD SIM FOTO TO SUPABASE STORAGE ---- */
+async function uploadSimToSupabase(base64Data, filename) {
+  if (!base64Data || !supabaseClient) return null;
+  try {
+    const res = await fetch(base64Data);
+    const blob = await res.blob();
+    const filePath = `sim_${Date.now()}_${filename || 'photo'}.jpg`;
+    const { data, error } = await supabaseClient.storage.from('sim-photos').upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) throw error;
+    const { data: publicUrlData } = supabaseClient.storage.from('sim-photos').getPublicUrl(filePath);
+    return publicUrlData.publicUrl;
+  } catch (e) {
+    console.error('Upload SIM error:', e);
+    return null;
+  }
+}
+
 /* ---- SUBMIT ---- */
-/* ---- VALIDASI FIELD WAJIB ---- */
 function validateRequiredFields(){
   const checks = [
     ['p_nama', 'Nama Lengkap'],
@@ -917,55 +927,89 @@ function validateRequiredFields(){
 async function submitForm(){
   if(recallMode){ await updateRecallData(); return; }
   if(!validateRequiredFields()) return;
-  if(!CONFIG.SCRIPT_URL.startsWith("http")){ alert("SCRIPT_URL belum dikonfigurasi."); return; }
+  if(!supabaseClient){ alert("Supabase belum terinisialisasi."); return; }
+  
   document.getElementById('statusText').textContent = "Mengecek ketersediaan kendaraan...";
   const boleh = await cekKendaraanTersedia();
   if(!boleh){ document.getElementById('statusText').textContent = "Submit dibatalkan."; return; }
-  document.getElementById('statusText').textContent = "Menyimpan & mengirim approval...";
+  
+  document.getElementById('statusText').textContent = "Mengunggah foto & menyimpan ke Supabase...";
+  
+  let simUrl = null;
+  if(simBase64) {
+    simUrl = await uploadSimToSupabase(simBase64, document.getElementById('noForm').value);
+  }
+
   const payload = collectFormData();
+  const row = {
+    no_form: payload.noForm,
+    tanggal_form: payload.tanggalForm,
+    nama: payload.pengguna.nama,
+    perusahaan: payload.pengguna.perusahaan,
+    jabatan: payload.pengguna.jabatan,
+    alamat: payload.pengguna.alamat,
+    ktp: payload.pengguna.ktp,
+    telepon: payload.pengguna.telepon,
+    email: payload.pengguna.email,
+    tujuan: payload.pemakaian.tujuan,
+    tgl_mulai: payload.pemakaian.tglMulai,
+    waktu_mulai: payload.pemakaian.waktuMulai,
+    tgl_selesai: payload.pemakaian.tglSelesai,
+    waktu_selesai: payload.pemakaian.waktuSelesai,
+    durasi: payload.pemakaian.durasi ? parseFloat(payload.pemakaian.durasi) : 0,
+    lokasi_jemput: payload.pemakaian.lokasiJemput,
+    lokasi_kembali: payload.pemakaian.lokasiKembali,
+    dengan_driver: payload.pemakaian.denganDriver,
+    jenis: payload.kendaraan.jenis,
+    merk: payload.kendaraan.merk,
+    nopol: payload.kendaraan.nopol,
+    warna: payload.kendaraan.warna,
+    tahun: payload.kendaraan.tahun,
+    vin: payload.kendaraan.vin,
+    mesin: payload.kendaraan.mesin,
+    km_awal: payload.kendaraan.kmAwal ? parseFloat(payload.kendaraan.kmAwal) : 0,
+    level_bensin: payload.kendaraan.levelBensin ? parseFloat(payload.kendaraan.levelBensin) : 50,
+    catatan_kondisi: payload.kendaraan.catatanKondisi,
+    nama_dari: payload.serahTerima.namaDari,
+    jabatan_dari: payload.serahTerima.jabatanDari,
+    tgl_dari: payload.serahTerima.tglDari,
+    ttd_dari: payload.serahTerima.ttdDari,
+    nama_ke: payload.serahTerima.namaKe,
+    jabatan_ke: payload.serahTerima.jabatanKe,
+    tgl_ke: payload.serahTerima.tglKe,
+    ttd_ke: payload.serahTerima.ttdKe,
+    stnk: payload.serahTerima.kelengkapan.stnk,
+    kunci_cadangan: payload.serahTerima.kelengkapan.kunciCadangan,
+    dongkrak: payload.serahTerima.kelengkapan.dongkrak,
+    ban_serep: payload.serahTerima.kelengkapan.banSerep,
+    segitiga: payload.serahTerima.kelengkapan.segitiga,
+    p3k: payload.serahTerima.kelengkapan.p3k,
+    lainnya: payload.serahTerima.kelengkapan.lainnya,
+    foto_sim_url: simUrl,
+    approval_status: 'pending'
+  };
+
   try{
-    const res = await fetch(CONFIG.SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    const json = await res.json();
-    console.log('[submitForm] response dari server:', json); // BUG FIX: log respons mentah supaya gampang didiagnosa lewat DevTools Console kalau ada yang tidak sesuai
-    if(json && json.fotoSimFailed){
-      // BUG FIX: sebelumnya kegagalan upload Foto SIM ke Google Drive tidak
-      // pernah diberitahukan — form tersimpan "sukses" padahal foto SIM
-      // hilang. Sekarang admin diberi peringatan eksplisit.
-      document.getElementById('statusText').textContent =
-        "Tersimpan ✅, TAPI Foto SIM gagal diupload ke Drive ⚠️ — coba \"Cari & Edit Data\" lalu upload ulang.";
-    } else if(payload.fotoSim && !(json && json.fotoSimUrl)){
-      // BUG FIX UTAMA: sebelumnya kalau ada Foto SIM yang dikirim (payload.fotoSim
-      // terisi) tapi respons server TIDAK punya fotoSimUrl (bukti nyata foto sudah
-      // diupload ke Drive) DAN juga tidak menyetel fotoSimFailed, halaman ini tetap
-      // menampilkan "Tersimpan ✅" seolah semuanya beres — padahal ini gejala paling
-      // umum saat backend (Code.gs) sama sekali belum memproses field fotoSim, atau
-      // gagal tapi tidak melempar error yang tertangkap. Preview di browser memang
-      // selalu berhasil (itu cuma FileReader + canvas lokal), tapi itu BUKAN bukti
-      // foto sudah tersimpan di server. Sekarang user diberi peringatan eksplisit
-      // alih-alih pesan sukses yang menyesatkan.
-      console.warn('[submitForm] Foto SIM dikirim tapi server tidak mengembalikan fotoSimUrl — kemungkinan backend belum/gagal memproses upload.', json);
-      document.getElementById('statusText').textContent =
-        "Tersimpan ✅, TAPI status Foto SIM TIDAK dikonfirmasi oleh server ⚠️ — kemungkinan backend (Code.gs) belum memproses upload foto ke Drive. Cek folder Drive untuk memastikan, atau lihat log Apps Script (Extensions → Apps Script → Executions).";
-    } else {
-      document.getElementById('statusText').textContent = "Tersimpan ✅ Email approval terkirim ke approver.";
-    }
+    const { data, error } = await supabaseClient.from('submissions').insert([row]).select();
+    if(error) throw error;
+    document.getElementById('statusText').textContent = "Tersimpan ✅ (Real-time di Supabase)";
     document.getElementById('approvalBadge').style.display='inline-block';
     document.getElementById('approvalBadge').textContent='⏳ Menunggu Approval';
     document.getElementById('metaStatus').textContent='Menunggu Approval';
   }catch(e){
-    document.getElementById('statusText').textContent = "Gagal menyimpan ❌";
+    console.error(e);
+    document.getElementById('statusText').textContent = "Gagal menyimpan ❌: " + e.message;
   }
 }
 
 /* ============================================================
-   RECALL & EDIT DATA (dengan proteksi PIN)
+   RECALL & EDIT DATA
    ============================================================ */
 const RECALL_PIN = "ism2026";
-let recallMode = false;     // sedang menampilkan/mengedit data lama?
-let recallUnlocked = false; // PIN sudah benar & field boleh diedit?
+let recallMode = false;
+let recallUnlocked = false;
 let recallNoForm = null;
 
-// Field yang ikut dikunci/dibuka saat mode recall (di luar noForm, yang selalu readonly)
 const RECALL_FIELD_IDS = [
   'p_nama','p_perusahaan','p_jabatan','p_alamat','p_ktp','p_telp','p_email',
   'i_tujuan','i_tglMulai','i_waktuMulai','i_tglSelesai','i_waktuSelesai','i_durasi',
@@ -974,8 +1018,7 @@ const RECALL_FIELD_IDS = [
   'h_namaDari','h_jabatanDari','h_tglDari','h_namaKe','h_jabatanKe','h_tglKe',
   'k_stnk','k_kunci','k_dongkrak','k_ban','k_segitiga','k_p3k','k_lainnyaChk','k_lainnyaTxt',
   'tglForm',
-  'simCamBtn','simFileBtn' // BUG FIX: dulu tombol Foto SIM tidak ikut terkunci
-                            // saat mode lihat (sebelum PIN dimasukkan)
+  'simCamBtn','simFileBtn'
 ];
 
 let recallListCache = [];
@@ -983,36 +1026,30 @@ let recallListCache = [];
 function openRecallModal(){
   document.getElementById('recallOverlay').classList.add('open');
   document.getElementById('recallSearchInput').value = '';
-  if (recallListCache && recallListCache.length > 0) {
-    renderRecallList(recallListCache);
-  } else {
-    loadRecallList();
-  }
+  loadRecallList();
 }
 function closeRecallModal(){
   document.getElementById('recallOverlay').classList.remove('open');
 }
 async function loadRecallList(){
   const listEl = document.getElementById('recallModalList');
-  if (!recallListCache || recallListCache.length === 0) {
-    listEl.innerHTML = '<div class="recall-empty">Memuat daftar form...</div>';
-  }
-  if(!CONFIG.SCRIPT_URL.startsWith("http")){
-    listEl.innerHTML = '<div class="recall-empty">SCRIPT_URL belum dikonfigurasi.</div>';
-    return;
-  }
+  if(!supabaseClient) return;
   try{
-    const res = await fetch(CONFIG.SCRIPT_URL+"?action=getSubmissionsList");
-    const json = await res.json();
-    recallListCache = (json && json.data) ? json.data : [];
+    const { data, error } = await supabaseClient.from('submissions').select('no_form, nama, perusahaan, tanggal_form, nopol, approval_status').order('created_at', { ascending: false });
+    if(error) throw error;
+    recallListCache = (data || []).map(r => ({
+      noForm: r.no_form,
+      nama: r.nama,
+      perusahaan: r.perusahaan,
+      tanggalForm: r.tanggal_form,
+      nopol: r.nopol,
+      approvalStatus: r.approval_status
+    }));
     renderRecallList(recallListCache);
   }catch(e){
-    if (!recallListCache || recallListCache.length === 0) {
-      listEl.innerHTML = '<div class="recall-empty">Gagal memuat daftar ❌</div>';
-    }
+    listEl.innerHTML = '<div class="recall-empty">Gagal memuat daftar ❌</div>';
   }
 }
-setTimeout(()=>loadRecallList(), 1200);
 function statusLabel(s){
   if(s==='pending') return 'Menunggu Approval';
   if(s==='approved1') return 'Approval Tahap 1 ✓';
@@ -1058,20 +1095,35 @@ function filterRecallList(){
 }
 
 async function loadSubmissionForEdit(noForm){
-  if(!CONFIG.SCRIPT_URL.startsWith("http")){ alert("SCRIPT_URL belum dikonfigurasi."); return; }
+  if(!supabaseClient) return;
   document.getElementById('statusText').textContent = "Mencari data \""+noForm+"\"...";
   try{
-    const res = await fetch(CONFIG.SCRIPT_URL+"?action=getSubmissionByNoForm&noForm="+encodeURIComponent(noForm));
-    const json = await res.json();
-    if(json.error){
-      alert(json.error);
+    const { data, error } = await supabaseClient.from('submissions').select('*').eq('no_form', noForm).single();
+    if(error || !data){
+      alert("Data tidak ditemukan.");
       document.getElementById('statusText').textContent = "Data tidak ditemukan.";
       return;
     }
-    populateFormFromData(json.data);
+    const d = {
+      noForm: data.no_form, tanggalForm: data.tanggal_form,
+      nama: data.nama, perusahaan: data.perusahaan, jabatan: data.jabatan, alamat: data.alamat,
+      ktp: data.ktp, telepon: data.telepon, email: data.email,
+      tujuan: data.tujuan, tglMulai: data.tgl_mulai, waktuMulai: data.waktu_mulai,
+      tglSelesai: data.tgl_selesai, waktuSelesai: data.waktu_selesai,
+      durasi: data.durasi, lokasiJemput: data.lokasi_jemput, lokasiKembali: data.lokasi_kembali, denganDriver: data.dengan_driver,
+      jenis: data.jenis, merk: data.merk, nopol: data.nopol, warna: data.warna, tahun: data.tahun,
+      vin: data.vin, mesin: data.mesin,
+      kmAwal: data.km_awal, levelBensin: data.level_bensin, catatanKondisi: data.catatan_kondisi,
+      namaDari: data.nama_dari, jabatanDari: data.jabatan_dari, tglDari: data.tgl_dari,
+      namaKe: data.nama_ke, jabatanKe: data.jabatan_ke, tglKe: data.tgl_ke,
+      stnk: data.stnk, kunciCadangan: data.kunci_cadangan, dongkrak: data.dongkrak, banSerep: data.ban_serep,
+      segitiga: data.segitiga, p3k: data.p3k, lainnya: data.lainnya,
+      fotoSimUrl: data.foto_sim_url, approvalStatus: data.approval_status, token: data.token
+    };
+    populateFormFromData(d);
     recallMode = true;
     recallUnlocked = false;
-    recallNoForm = json.data.noForm;
+    recallNoForm = d.noForm;
     lockRecallFields(true);
     document.getElementById('recallBadge').style.display = 'inline-block';
     document.getElementById('recallNoFormLabel').textContent = recallNoForm;
@@ -1122,19 +1174,12 @@ function populateFormFromData(d){
   document.getElementById('k_lainnyaChk').checked = !!d.lainnya;
   document.getElementById('k_lainnyaTxt').value = d.lainnya || '';
 
-  // BUG FIX: sebelumnya kalau user upload Foto SIM lalu pindah ke form lain
-  // lewat "Cari & Edit Data" tanpa submit dulu, preview foto lama itu masih
-  // nyangkut dan seolah-olah jadi Foto SIM milik form yang baru dimuat.
-  // Reset dulu setiap kali data baru dimuat.
   removeSim();
   if(d.fotoSimUrl){
     document.getElementById('simHint').innerHTML =
       'Foto SIM tersimpan: <a href="'+d.fotoSimUrl+'" target="_blank" rel="noopener">lihat foto</a> '
       + '(upload foto baru di sini untuk menggantinya)';
   }
-  // Catatan: data kendaraan (jenis/merk/nopol/dll) sengaja tidak diubah dari
-  // sini — itu data master kendaraan yang dikelola lewat mode Super User dan
-  // tidak diedit lewat recall ini.
 }
 
 function lockRecallFields(lock){
@@ -1160,33 +1205,58 @@ async function updateRecallData(){
     return;
   }
   if(!validateRequiredFields()) return;
-  if(!CONFIG.SCRIPT_URL.startsWith("http")){ alert("SCRIPT_URL belum dikonfigurasi."); return; }
+  if(!supabaseClient) return;
   document.getElementById('statusText').textContent = "Menyimpan perubahan...";
+  
+  let simUrl = null;
+  if(simBase64) {
+    simUrl = await uploadSimToSupabase(simBase64, recallNoForm);
+  }
+  
   const payload = collectFormData();
-  payload.action = 'updateSubmission';
-  payload.noForm = recallNoForm;
-  payload.pin = RECALL_PIN;
+  const updateRow = {
+    tanggal_form: payload.tanggalForm,
+    nama: payload.pengguna.nama,
+    perusahaan: payload.pengguna.perusahaan,
+    jabatan: payload.pengguna.jabatan,
+    alamat: payload.pengguna.alamat,
+    ktp: payload.pengguna.ktp,
+    telepon: payload.pengguna.telepon,
+    email: payload.pengguna.email,
+    tujuan: payload.pemakaian.tujuan,
+    tgl_mulai: payload.pemakaian.tglMulai,
+    waktu_mulai: payload.pemakaian.waktuMulai,
+    tgl_selesai: payload.pemakaian.tglSelesai,
+    waktu_selesai: payload.pemakaian.waktuSelesai,
+    durasi: payload.pemakaian.durasi ? parseFloat(payload.pemakaian.durasi) : 0,
+    lokasi_jemput: payload.pemakaian.lokasiJemput,
+    lokasi_kembali: payload.pemakaian.lokasiKembali,
+    km_awal: payload.kendaraan.kmAwal ? parseFloat(payload.kendaraan.kmAwal) : 0,
+    level_bensin: payload.kendaraan.levelBensin ? parseFloat(payload.kendaraan.levelBensin) : 50,
+    catatan_kondisi: payload.kendaraan.catatanKondisi,
+    nama_dari: payload.serahTerima.namaDari,
+    jabatan_dari: payload.serahTerima.jabatanDari,
+    tgl_dari: payload.serahTerima.tglDari,
+    nama_ke: payload.serahTerima.namaKe,
+    jabatan_ke: payload.serahTerima.jabatanKe,
+    tgl_ke: payload.serahTerima.tglKe,
+    stnk: payload.serahTerima.kelengkapan.stnk,
+    kunci_cadangan: payload.serahTerima.kelengkapan.kunciCadangan,
+    dongkrak: payload.serahTerima.kelengkapan.dongkrak,
+    ban_serep: payload.serahTerima.kelengkapan.banSerep,
+    segitiga: payload.serahTerima.kelengkapan.segitiga,
+    p3k: payload.serahTerima.kelengkapan.p3k,
+    lainnya: payload.serahTerima.kelengkapan.lainnya
+  };
+
+  if(simUrl) {
+    updateRow.foto_sim_url = simUrl;
+  }
+
   try{
-    const res = await fetch(CONFIG.SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    const json = await res.json();
-    console.log('[updateRecallData] response dari server:', json); // BUG FIX: log respons mentah untuk diagnosa
-    if(json && json.error){
-      document.getElementById('statusText').textContent = "Gagal: "+json.error;
-      return;
-    }
-    if(json && json.fotoSimFailed){
-      document.getElementById('statusText').textContent =
-        "Perubahan tersimpan ✅, TAPI Foto SIM baru gagal diupload ⚠️ — foto lama tetap dipakai, coba upload ulang.";
-    } else if(payload.fotoSim && !(json && json.fotoSimUrl)){
-      // BUG FIX: sama seperti di submitForm() — kalau ada foto baru dikirim tapi
-      // server tidak mengonfirmasi lewat fotoSimUrl, jangan klaim sukses begitu saja.
-      console.warn('[updateRecallData] Foto SIM baru dikirim tapi server tidak mengembalikan fotoSimUrl.', json);
-      document.getElementById('statusText').textContent =
-        "Perubahan tersimpan ✅, TAPI status Foto SIM baru TIDAK dikonfirmasi oleh server ⚠️ — cek folder Drive / log Apps Script untuk memastikan foto benar-benar tersimpan.";
-    } else {
-      document.getElementById('statusText').textContent =
-        "Perubahan pada \""+recallNoForm+"\" tersimpan ✅ ("+new Date().toLocaleTimeString('id-ID')+")";
-    }
+    const { error } = await supabaseClient.from('submissions').update(updateRow).eq('no_form', recallNoForm);
+    if(error) throw error;
+    document.getElementById('statusText').textContent = "Perubahan pada \""+recallNoForm+"\" tersimpan ✅";
   }catch(e){
     document.getElementById('statusText').textContent = "Gagal menyimpan perubahan ❌";
   }

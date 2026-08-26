@@ -6,6 +6,8 @@
 <title>Form Pengembalian Mobil - Integra Solusi Mandiri</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 <style>
   :root{
     --red:#8a1116;
@@ -614,26 +616,46 @@ document.getElementById('r_waktuKembali').value = new Date().toTimeString().slic
 document.getElementById('hr_tglDari').value = todayLocal();
 document.getElementById('hr_tglKe').value = todayLocal();
 
+initSupabase();
+
 /* ---- LOAD ACTIVE LOANS ---- */
 let allActiveLoans = [];
 
 async function loadActiveLoans(){
-  if(!CONFIG.SCRIPT_URL.startsWith("http")){
-    document.getElementById('loanLoaderWrap').style.display = 'none';
-    document.getElementById('loanSelectorWrap').style.display = 'block';
-    document.getElementById('loanSelect').innerHTML = '<option value="">— SCRIPT_URL belum dikonfigurasi —</option>';
-    return;
-  }
+  if(!supabaseClient) return;
   try{
-    const res = await fetch(CONFIG.SCRIPT_URL + "?action=getActiveLoans");
-    const json = await res.json();
+    const { data: subs } = await supabaseClient.from('submissions').select('*').neq('approval_status', 'rejected');
+    const { data: rets } = await supabaseClient.from('returns').select('ref_no_form');
     document.getElementById('loanLoaderWrap').style.display = 'none';
 
-    if(json && json.data && json.data.length > 0){
-      allActiveLoans = json.data;
+    const returnedForms = new Set((rets || []).map(r => r.ref_no_form));
+    const active = (subs || []).filter(s => !returnedForms.has(s.no_form));
+
+    if(active.length > 0){
+      allActiveLoans = active.map(r => ({
+        'No.Form': r.no_form,
+        'Nama': r.nama,
+        'Perusahaan': r.perusahaan,
+        'Jabatan': r.jabatan,
+        'Telepon': r.telepon,
+        'Tujuan': r.tujuan,
+        'Tgl Mulai': r.tgl_mulai,
+        'Tgl Selesai': r.tgl_selesai,
+        'Durasi': r.durasi,
+        'Dengan Driver': r.dengan_driver,
+        'Jenis Mobil': r.jenis,
+        'Merk/Type': r.merk,
+        'Nopol': r.nopol,
+        'Warna': r.warna,
+        'Tahun': r.tahun,
+        'KM Awal': r.km_awal,
+        'Level Bensin': r.level_bensin,
+        'Catatan Kondisi': r.catatan_kondisi
+      }));
+
       const sel = document.getElementById('loanSelect');
       sel.innerHTML = '<option value="">— Pilih peminjaman aktif —</option>';
-      json.data.forEach((row, i)=>{
+      allActiveLoans.forEach((row, i)=>{
         const opt = document.createElement('option');
         opt.value = i;
         const tgl = row['Tgl Selesai'] ? ` | Rencana kembali: ${row['Tgl Selesai']}` : '';
@@ -645,8 +667,9 @@ async function loadActiveLoans(){
       document.getElementById('noLoanWrap').style.display = 'block';
     }
   }catch(e){
+    console.error(e);
     document.getElementById('loanLoaderWrap').innerHTML =
-      '<div style="color:#c00;font-size:12px;">⚠️ Gagal memuat data. Pastikan SCRIPT_URL sudah benar dan di-deploy ulang setelah update Code.gs.</div>';
+      '<div style="color:#c00;font-size:12px;">⚠️ Gagal memuat data.</div>';
   }
 }
 loadActiveLoans();
@@ -819,24 +842,50 @@ async function submitReturn(){
   const idx = document.getElementById('loanSelect').value;
   if(!idx){ alert("Pilih peminjaman aktif terlebih dahulu."); return; }
   if(!document.getElementById('r_tglKembali').value){ alert("Tanggal kembali wajib diisi."); return; }
-  if(!CONFIG.SCRIPT_URL.startsWith("http")){
-    alert("SCRIPT_URL belum dikonfigurasi.");
-    return;
-  }
-  document.getElementById('statusText').textContent = "Menyimpan...";
+  if(!supabaseClient){ alert("Supabase belum terinisialisasi."); return; }
+
+  document.getElementById('statusText').textContent = "Menyimpan ke Supabase...";
   const payload = collectReturnData();
+  const row = {
+    no_form_ret: payload.noFormRet,
+    tanggal_form_ret: payload.tanggalFormRet,
+    ref_no_form: payload.refNoForm,
+    ref_nama: payload.refNama,
+    ref_perusahaan: payload.refPerusahaan,
+    ref_nopol: payload.refNopol,
+    km_awal: payload.kmAwal ? parseFloat(payload.kmAwal) : 0,
+    km_akhir: payload.kmAkhir ? parseFloat(payload.kmAkhir) : 0,
+    km_tempuh: payload.kmTempuh ? parseFloat(payload.kmTempuh.replace(/[^0-9.-]/g, '')) : 0,
+    fuel_level_kembali: payload.fuelLevelKembali ? parseFloat(payload.fuelLevelKembali) : 50,
+    kondisi_kembali: payload.kondisiKembali,
+    tgl_kembali: payload.tglKembali,
+    waktu_kembali: payload.waktuKembali,
+    lokasi_kembali: payload.lokasiKembali,
+    status_keterlambatan: payload.statusKeterlambatan,
+    selisih_hari: payload.selisihHari ? parseFloat(payload.selisihHari.replace(/[^0-9.-]/g, '')) : 0,
+    catatan_terlambat: payload.catatanTerlambat,
+    nama_dari: payload.serahTerima.namaDari,
+    jabatan_dari: payload.serahTerima.jabatanDari,
+    tgl_dari: payload.serahTerima.tglDari,
+    nama_ke: payload.serahTerima.namaKe,
+    jabatan_ke: payload.serahTerima.jabatanKe,
+    tgl_ke: payload.serahTerima.tglKe,
+    stnk: payload.serahTerima.kelengkapan.stnk,
+    kunci_cadangan: payload.serahTerima.kelengkapan.kunciCadangan,
+    dongkrak: payload.serahTerima.kelengkapan.dongkrak,
+    ban_serep: payload.serahTerima.kelengkapan.banSerep,
+    segitiga: payload.serahTerima.kelengkapan.segitiga,
+    p3k: payload.serahTerima.kelengkapan.p3k,
+    lainnya: payload.serahTerima.kelengkapan.lainnya
+  };
+
   try{
-    await fetch(CONFIG.SCRIPT_URL,{
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(payload)
-    });
-    document.getElementById('statusText').textContent = "Pengembalian tersimpan ke Google Sheet ✅ (" + new Date().toLocaleTimeString('id-ID') + ")";
-    // Update dropdown (hapus dari list aktif)
+    const { error } = await supabaseClient.from('returns').insert([row]);
+    if(error) throw error;
+    document.getElementById('statusText').textContent = "Pengembalian tersimpan ke Supabase ✅ (" + new Date().toLocaleTimeString('id-ID') + ")";
     const sel = document.getElementById('loanSelect');
     sel.remove(sel.selectedIndex);
     allActiveLoans.splice(parseInt(idx), 1);
-    // Reset preview
     document.getElementById('loanPreview').classList.remove('show');
     ['sectionRef','sectionKendaraan','sectionReturn','sectionHandover'].forEach(id=>{
       document.getElementById(id).style.display = 'none';

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Approval Peminjaman Mobil - ISM</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
   
@@ -399,6 +401,8 @@ function loadDataWithCache() {
   refreshData();
 }
 
+initSupabase();
+
 function forceRefreshData() {
   sessionStorage.removeItem('ism_submissions_cache');
   refreshData();
@@ -410,18 +414,26 @@ async function refreshData() {
   if(btn) { btn.disabled = true; btn.textContent = '⌛ Loading...'; }
 
   if(!allSubmissions || allSubmissions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">⏳ Memuat data dari Google Sheets... (sekitar 1-3 detik)</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">⏳ Memuat data dari Supabase Database...</td></tr>';
   }
   
   try {
-    const res = await fetch(CONFIG_SCRIPT_URL + "?action=getSubmissionsList");
-    const json = await res.json();
-    allSubmissions = (json && json.data) ? json.data : [];
+    const { data, error } = await supabaseClient.from('submissions').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    allSubmissions = (data || []).map(r => ({
+      noForm: r.no_form,
+      tanggalForm: r.tanggal_form,
+      nama: r.nama,
+      perusahaan: r.perusahaan,
+      nopol: r.nopol,
+      approvalStatus: r.approval_status,
+      token: r.token
+    }));
     sessionStorage.setItem('ism_submissions_cache', JSON.stringify(allSubmissions));
     updateStats();
     filterData();
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:var(--red);">❌ Gagal mengambil data dari Google Apps Script. Coba klik Refresh Data.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:var(--red);">❌ Gagal mengambil data dari Supabase. Coba klik Refresh Data.</td></tr>';
   } finally {
     if(btn) { btn.disabled = false; btn.textContent = '🔄 Refresh Data'; }
   }
@@ -507,17 +519,33 @@ function renderTable(items) {
 async function openDetailByNoForm(noForm) {
   document.getElementById('detailModal').classList.add('open');
   document.getElementById('modalTitle').textContent = `Form ${noForm}`;
-  document.getElementById('modalBody').innerHTML = '⏳ Memuat detail data dari Google Sheet...';
+  document.getElementById('modalBody').innerHTML = '⏳ Memuat detail data dari Supabase...';
   document.getElementById('modalFoot').innerHTML = '<button class="btn btn-ghost" onclick="closeDetailModal()">Tutup</button>';
 
   try {
-    const res = await fetch(CONFIG_SCRIPT_URL + "?action=getSubmissionByNoForm&noForm=" + encodeURIComponent(noForm));
-    const json = await res.json();
-    if(json.error) {
-      document.getElementById('modalBody').innerHTML = `<div style="color:var(--red);">${json.error}</div>`;
+    const { data, error } = await supabaseClient.from('submissions').select('*').eq('no_form', noForm).single();
+    if(error || !data) {
+      document.getElementById('modalBody').innerHTML = `<div style="color:var(--red);">Data tidak ditemukan.</div>`;
       return;
     }
-    renderModalDetail(json.data);
+    const d = {
+      noForm: data.no_form, tanggalForm: data.tanggal_form,
+      nama: data.nama, perusahaan: data.perusahaan, jabatan: data.jabatan, alamat: data.alamat,
+      ktp: data.ktp, telepon: data.telepon, email: data.email,
+      tujuan: data.tujuan, tglMulai: data.tgl_mulai, waktuMulai: data.waktu_mulai,
+      tglSelesai: data.tgl_selesai, waktuSelesai: data.waktu_selesai,
+      durasi: data.durasi, lokasiJemput: data.lokasi_jemput, lokasiKembali: data.lokasi_kembali, denganDriver: data.dengan_driver,
+      jenis: data.jenis, merk: data.merk, nopol: data.nopol, warna: data.warna, tahun: data.tahun,
+      vin: data.vin, mesin: data.mesin,
+      kmAwal: data.km_awal, levelBensin: data.level_bensin, catatanKondisi: data.catatan_kondisi,
+      namaDari: data.nama_dari, jabatanDari: data.jabatan_dari, tglDari: data.tgl_dari,
+      namaKe: data.nama_ke, jabatanKe: data.jabatan_ke, tglKe: data.tgl_ke,
+      stnk: data.stnk, kunciCadangan: data.kunci_cadangan, dongkrak: data.dongkrak, banSerep: data.ban_serep,
+      segitiga: data.segitiga, p3k: data.p3k, lainnya: data.lainnya,
+      fotoSimUrl: data.foto_sim_url, approvalStatus: data.approval_status, token: data.token,
+      approveNote1: data.approver1_note, approveNote2: data.approver2_note
+    };
+    renderModalDetail(d);
   } catch(e) {
     document.getElementById('modalBody').innerHTML = '<div style="color:var(--red);">Gagal terhubung ke server.</div>';
   }
@@ -529,13 +557,29 @@ async function openDetailByToken(token, roleParam) {
   document.getElementById('modalBody').innerHTML = '⏳ Memuat detail data...';
   
   try {
-    const res = await fetch(CONFIG_SCRIPT_URL + "?action=getApprovalData&token=" + encodeURIComponent(token));
-    const json = await res.json();
-    if(json.error) {
-      document.getElementById('modalBody').innerHTML = `<div style="color:var(--red);">${json.error}</div>`;
+    const { data, error } = await supabaseClient.from('submissions').select('*').eq('token', token).single();
+    if(error || !data) {
+      document.getElementById('modalBody').innerHTML = `<div style="color:var(--red);">Data tidak ditemukan.</div>`;
       return;
     }
-    renderModalDetail(json.data, token, roleParam);
+    const d = {
+      noForm: data.no_form, tanggalForm: data.tanggal_form,
+      nama: data.nama, perusahaan: data.perusahaan, jabatan: data.jabatan, alamat: data.alamat,
+      ktp: data.ktp, telepon: data.telepon, email: data.email,
+      tujuan: data.tujuan, tglMulai: data.tgl_mulai, waktuMulai: data.waktu_mulai,
+      tglSelesai: data.tgl_selesai, waktuSelesai: data.waktu_selesai,
+      durasi: data.durasi, lokasiJemput: data.lokasi_jemput, lokasiKembali: data.lokasi_kembali, denganDriver: data.dengan_driver,
+      jenis: data.jenis, merk: data.merk, nopol: data.nopol, warna: data.warna, tahun: data.tahun,
+      vin: data.vin, mesin: data.mesin,
+      kmAwal: data.km_awal, levelBensin: data.level_bensin, catatanKondisi: data.catatan_kondisi,
+      namaDari: data.nama_dari, jabatanDari: data.jabatan_dari, tglDari: data.tgl_dari,
+      namaKe: data.nama_ke, jabatanKe: data.jabatan_ke, tglKe: data.tgl_ke,
+      stnk: data.stnk, kunciCadangan: data.kunci_cadangan, dongkrak: data.dongkrak, banSerep: data.ban_serep,
+      segitiga: data.segitiga, p3k: data.p3k, lainnya: data.lainnya,
+      fotoSimUrl: data.foto_sim_url, approvalStatus: data.approval_status, token: data.token,
+      approveNote1: data.approver1_note, approveNote2: data.approver2_note
+    };
+    renderModalDetail(d, token, roleParam);
   } catch(e) {
     document.getElementById('modalBody').innerHTML = '<div style="color:var(--red);">Gagal terhubung ke server.</div>';
   }
@@ -618,35 +662,32 @@ async function submitApprovalAction(token, roleNum, decision) {
 
   if(!confirm(`Apakah Anda yakin ingin ${decision === 'approve' ? 'MENYETUJUI' : 'MENOLAK'} pengajuan ini?`)) return;
 
-  document.getElementById('modalFoot').innerHTML = '⏳ Memproses keputusan & mengirim email...';
+  document.getElementById('modalFoot').innerHTML = '⏳ Memproses keputusan...';
 
-  const payload = {
-    action: 'submitApproval',
-    token: token,
-    role: roleNum,
-    decision: decision,
-    approverNote: note
-  };
+  let newStatus = '';
+  const updateRow = {};
+
+  if(roleNum === 1) {
+    newStatus = decision === 'approve' ? 'approved1' : 'rejected';
+    updateRow.approval_status = newStatus;
+    updateRow.approver1_note = note;
+    updateRow.approver1_at = new Date().toISOString();
+  } else if(roleNum === 2) {
+    newStatus = decision === 'approve' ? 'approved2' : 'rejected';
+    updateRow.approval_status = newStatus;
+    updateRow.approver2_note = note;
+    updateRow.approver2_at = new Date().toISOString();
+  }
 
   try {
-    const res = await fetch(CONFIG_SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-    const json = await res.json();
-    
-    if(json.error) {
-      alert("Gagal: " + json.error);
-      forceRefreshData();
-      closeDetailModal();
-      return;
-    }
+    const { error } = await supabaseClient.from('submissions').update(updateRow).eq('token', token);
+    if(error) throw error;
     
     alert(`Berhasil! Pengajuan telah ${decision === 'approve' ? 'disetujui' : 'ditolak'}.`);
     closeDetailModal();
     forceRefreshData();
   } catch(e) {
-    alert("Terjadi kesalahan koneksi.");
+    alert("Terjadi kesalahan koneksi: " + e.message);
     closeDetailModal();
   }
 }
