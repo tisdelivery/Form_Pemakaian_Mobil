@@ -380,7 +380,12 @@ async function handleLogin(e) {
 
   if (btn) btn.innerHTML = 'Masuk';
   
-  const found = users.find(user => (user.username === u || user.email === u) && user.password === p);
+  const uLower = u.toLowerCase();
+  const found = users.find(user => 
+    ((user.username && user.username.toLowerCase() === uLower) || 
+     (user.email && user.email.toLowerCase() === uLower)) && 
+    user.password === p
+  );
   if(found) {
     currentUser = found;
     sessionStorage.setItem('ism_current_user', JSON.stringify(currentUser));
