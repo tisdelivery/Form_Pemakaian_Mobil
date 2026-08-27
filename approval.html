@@ -366,7 +366,7 @@ async function handleLogin(e) {
   if (btn) btn.innerHTML = 'Mencari...';
 
   // Sinkronisasi data user dari Supabase sebelum login
-  if (window.supabaseClient) {
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
     try {
       const { data } = await supabaseClient.from('users').select('*');
       if (data && data.length > 0) {
