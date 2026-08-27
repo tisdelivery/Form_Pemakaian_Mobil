@@ -617,12 +617,12 @@ let allActiveLoans = [];
 async function loadActiveLoans(){
   if(!supabaseClient) return;
   try{
-    const { data: subs } = await supabaseClient.from('submissions').select('*').neq('approval_status', 'rejected');
+    const { data: subs } = await supabaseClient.from('submissions').select('*').in('approval_status', ['approved', 'approved2']);
     const { data: rets } = await supabaseClient.from('returns').select('ref_no_form');
     document.getElementById('loanLoaderWrap').style.display = 'none';
 
-    const returnedForms = new Set((rets || []).map(r => r.ref_no_form));
-    const active = (subs || []).filter(s => !returnedForms.has(s.no_form));
+    const returnedForms = new Set((rets || []).map(r => String(r.ref_no_form).trim()));
+    const active = (subs || []).filter(s => !returnedForms.has(String(s.no_form).trim()));
 
     if(active.length > 0){
       allActiveLoans = active.map(r => ({

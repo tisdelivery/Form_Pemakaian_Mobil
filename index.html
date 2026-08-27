@@ -1055,11 +1055,11 @@ async function submitForm(){
     document.getElementById('approvalBadge').textContent='⏳ Menunggu Approval';
     document.getElementById('metaStatus').textContent='Menunggu Approval';
 
-    // Kirim notifikasi email ke Approver 1 via Apps Script Mailer (Background)
+    // Kirim notifikasi email paralel ke Approver 1 & Approver 2 via Mailer (Background)
     fetch("https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'submitForm', ...payload })
+      body: JSON.stringify({ action: 'submitForm', isParallel: true, isConflict: !!currentConflictInfo, conflictInfo: currentConflictInfo, ...payload })
     }).catch(err => console.warn('Email trigger background warning:', err));
 
   }catch(e){
