@@ -356,11 +356,29 @@ function checkSession() {
   }
 }
 
-function handleLogin(e) {
+async function handleLogin(e) {
   e.preventDefault();
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value.trim();
-  const users = getUsers();
+  let users = getUsers();
+  
+  const btn = e.target.querySelector('button');
+  if (btn) btn.innerHTML = 'Mencari...';
+
+  // Sinkronisasi data user dari Supabase sebelum login
+  if (window.supabaseClient) {
+    try {
+      const { data } = await supabaseClient.from('users').select('*');
+      if (data && data.length > 0) {
+        users = data;
+        saveUsers(users); // Update cache lokal
+      }
+    } catch(err) {
+      console.warn("Supabase login sync error:", err);
+    }
+  }
+
+  if (btn) btn.innerHTML = 'Masuk';
   
   const found = users.find(user => (user.username === u || user.email === u) && user.password === p);
   if(found) {
