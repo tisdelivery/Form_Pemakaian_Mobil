@@ -501,9 +501,10 @@ function filterData() {
 
 function getStatusBadge(st) {
   st = st || 'pending';
-  if(st === 'pending') return '<span class="badge pending">⏳ Menunggu Tahap 1</span>';
-  if(st === 'approved1') return '<span class="badge approved1">✅ Approve Tahap 1</span>';
-  if(st === 'approved2') return '<span class="badge approved2">✅ Disetujui Final</span>';
+  if(st === 'pending') return '<span class="badge pending">⏳ Menunggu Approval (Paralel)</span>';
+  if(st === 'approved1') return '<span class="badge approved1">🔵 Disetujui Approver 1 (Menunggu Approver 2)</span>';
+  if(st === 'approved2') return '<span class="badge approved1">🔵 Disetujui Approver 2 (Menunggu Approver 1)</span>';
+  if(st === 'approved') return '<span class="badge approved2">✅ Disetujui Final</span>';
   if(st === 'rejected') return '<span class="badge rejected">❌ Ditolak</span>';
   return `<span class="badge">${st}</span>`;
 }
@@ -613,9 +614,15 @@ function renderModalDetail(d, tokenOverride, roleOverride) {
   if(roleOverride) roleNumber = parseInt(roleOverride);
 
   let canApprove = false;
-  if(currentUser.role === 'admin') canApprove = true;
-  else if(roleNumber === 1 && status === 'pending') canApprove = true;
-  else if(roleNumber === 2 && status === 'approved1') canApprove = true;
+  if (status !== 'approved' && status !== 'rejected') {
+    if (currentUser.role === 'admin') {
+      canApprove = true;
+    } else if (currentUser.role === 'approver1' && !d.approver1At && status !== 'approved1') {
+      canApprove = true;
+    } else if (currentUser.role === 'approver2' && !d.approver2At && status !== 'approved2') {
+      canApprove = true;
+    }
+  }
 
   let bodyHtml = `
     <div style="margin-bottom:12px;">
@@ -638,7 +645,7 @@ function renderModalDetail(d, tokenOverride, roleOverride) {
   if(canApprove) {
     bodyHtml += `
       <div style="background:#fdf8f2;border:1px solid var(--orange);padding:14px;border-radius:8px;margin-top:16px;">
-        <h4 style="color:var(--orange);margin-bottom:8px;font-size:13px;">⚡ Keputusan Approval (Bertindak sebagai Tahap ${roleNumber})</h4>
+        <h4 style="color:var(--orange);margin-bottom:8px;font-size:13px;">⚡ Keputusan Approval (Bertindak sebagai ${currentUser.role === 'approver1' ? 'Approver 1 (Pak Sanny)' : currentUser.role === 'approver2' ? 'Approver 2 (Bu Gita)' : 'Super Admin'})</h4>
         <div class="form-group">
           <label>Catatan Approver (Wajib diisi jika MENOLAK)</label>
           <textarea id="appNote" placeholder="Tuliskan alasan penolakan / catatan persetujuan di sini..."></textarea>
@@ -648,7 +655,7 @@ function renderModalDetail(d, tokenOverride, roleOverride) {
   } else {
     bodyHtml += `
       <div style="background:#f5f5f5;padding:12px;border-radius:6px;color:#666;font-size:12px;margin-top:14px;">
-        ℹ️ Status form ini saat ini: <strong>${status}</strong>. Tidak memerlukan aksi approval dari akun Anda saat ini.
+        ℹ️ Status form ini saat ini: <strong>${status}</strong>. Tidak memerlukan aksi approval tambahan dari akun Anda saat ini.
       </div>
     `;
   }
@@ -688,32 +695,64 @@ async function submitApprovalAction(token, roleNum, decision) {
 
   document.getElementById('modalFoot').innerHTML = '⏳ Memproses keputusan...';
 
-  let newStatus = '';
-  const updateRow = {};
-
-  if(roleNum === 1) {
-    newStatus = decision === 'approve' ? 'approved1' : 'rejected';
-    updateRow.approval_status = newStatus;
-    updateRow.approver1_note = note;
-    updateRow.approver1_at = new Date().toISOString();
-  } else if(roleNum === 2) {
-    newStatus = decision === 'approve' ? 'approved2' : 'rejected';
-    updateRow.approval_status = newStatus;
-    updateRow.approver2_note = note;
-    updateRow.approver2_at = new Date().toISOString();
-  }
-
   try {
-    const { error } = await supabaseClient.from('submissions').update(updateRow).eq('token', token);
-    if(error) throw error;
-    
-    alert(`Berhasil! Pengajuan telah ${decision === 'approve' ? 'disetujui' : 'ditolak'}.`);
+    const { data: currentSub, error: fetchErr } = await supabaseClient
+      .from('submissions')
+      .select('*')
+      .eq('token', token)
+      .single();
 
-    // Kirim notifikasi email ke Approver berikutnya via Apps Script Mailer (Background)
+    if(fetchErr || !currentSub) throw new Error("Data pengajuan tidak ditemukan!");
+
+    let newStatus = '';
+    const updateRow = {};
+
+    if(decision === 'reject') {
+      newStatus = 'rejected';
+      if(roleNum === 1) {
+        updateRow.approver1_note = note;
+        updateRow.approver1_at = new Date().toISOString();
+      } else {
+        updateRow.approver2_note = note;
+        updateRow.approver2_at = new Date().toISOString();
+      }
+    } else { // decision === 'approve'
+      if(roleNum === 1) {
+        updateRow.approver1_note = note;
+        updateRow.approver1_at = new Date().toISOString();
+        if(currentSub.approval_status === 'approved2' || currentSub.approver2_at) {
+          newStatus = 'approved';
+        } else {
+          newStatus = 'approved1';
+        }
+      } else if(roleNum === 2) {
+        updateRow.approver2_note = note;
+        updateRow.approver2_at = new Date().toISOString();
+        if(currentSub.approval_status === 'approved1' || currentSub.approver1_at) {
+          newStatus = 'approved';
+        } else {
+          newStatus = 'approved2';
+        }
+      } else {
+        newStatus = 'approved';
+      }
+    }
+
+    updateRow.approval_status = newStatus;
+
+    const { error: updateErr } = await supabaseClient
+      .from('submissions')
+      .update(updateRow)
+      .eq('token', token);
+
+    if(updateErr) throw updateErr;
+
+    alert(`Berhasil! Keputusan Anda (${decision === 'approve' ? 'Disetujui' : 'Ditolak'}) telah dicatat.`);
+
     fetch("https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'submitApproval', token: token, role: roleNum, decision: decision, note: note })
+      body: JSON.stringify({ action: 'submitApproval', token: token, role: roleNum, decision: decision, note: note, newStatus: newStatus })
     }).catch(err => console.warn('Email background trigger warning:', err));
 
     closeDetailModal();

@@ -392,6 +392,7 @@
       <div class="field"><label>Lokasi Pengembalian <span class="required">*</span></label><span class="colon">:</span><input type="text" id="i_lokasiKembali" required></div>
     </div>
   </div>
+  <div id="conflictWarningBanner" style="display:none;margin-top:12px;padding:12px 16px;background:#fff3cd;border:1px solid #ffeeba;color:#856404;border-radius:8px;font-size:13px;line-height:1.5;"></div>
 </div>
 
 <!-- 3. DETAIL KENDARAAN -->
@@ -585,12 +586,72 @@ document.getElementById('noForm').value = "FPM-" + Date.now().toString().slice(-
 document.getElementById('h_tglDari').value = todayLocal();
 document.getElementById('h_tglKe').value = todayLocal();
 
+let currentConflictInfo = null;
+
 function hitungDurasi(){
   const a = document.getElementById('i_tglMulai').value;
   const b = document.getElementById('i_tglSelesai').value;
   if(a && b){
     const diff = Math.round((new Date(b)-new Date(a))/86400000)+1;
     document.getElementById('i_durasi').value = diff > 0 ? diff : 0;
+  }
+  checkScheduleConflict();
+}
+
+async function checkScheduleConflict() {
+  const tglMulai = document.getElementById('i_tglMulai').value;
+  const tglSelesai = document.getElementById('i_tglSelesai').value;
+  const nopolEl = document.querySelector('[data-veh="nopol"]');
+  const nopol = nopolEl ? nopolEl.textContent.trim() : '';
+  const banner = document.getElementById('conflictWarningBanner');
+
+  currentConflictInfo = null;
+  if (!tglMulai || !tglSelesai || !nopol || typeof supabaseClient === 'undefined' || !supabaseClient) {
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+
+  try {
+    const { data: subData } = await supabaseClient
+      .from('submissions')
+      .select('*')
+      .eq('nopol', nopol)
+      .neq('approval_status', 'rejected');
+
+    const { data: retData } = await supabaseClient
+      .from('returns')
+      .select('ref_no_form');
+
+    const returnedNoForms = new Set((retData || []).map(r => String(r.ref_no_form).trim()));
+
+    if (subData && subData.length > 0) {
+      for (const sub of subData) {
+        const isOverlap = (sub.tgl_mulai <= tglSelesai) && (sub.tgl_selesai >= tglMulai);
+        const isStillOnLoan = !returnedNoForms.has(String(sub.no_form).trim());
+
+        if (isOverlap || (isStillOnLoan && sub.tgl_selesai < tglMulai)) {
+          currentConflictInfo = {
+            borrower: sub.nama,
+            noForm: sub.no_form,
+            tglMulai: sub.tgl_mulai,
+            tglSelesai: sub.tgl_selesai,
+            isStillOnLoan: isStillOnLoan
+          };
+          break;
+        }
+      }
+    }
+
+    if (currentConflictInfo && banner) {
+      banner.style.display = 'block';
+      banner.innerHTML = `⚠️ <strong>CATATAN BENTROK JADWAL / KENDARAAN AKTIF:</strong><br>
+      Mobil (${nopol}) saat ini sedang dipinjam atau memiliki jadwal beririsan oleh <strong>${currentConflictInfo.borrower}</strong> (${currentConflictInfo.tglMulai} s.d. ${currentConflictInfo.tglSelesai}).<br>
+      <em>Pengajuan Anda tetap dapat dikirimkan dan akan ditinjau khusus oleh Approver.</em>`;
+    } else if (banner) {
+      banner.style.display = 'none';
+    }
+  } catch (e) {
+    console.warn("Error checking schedule conflict:", e);
   }
 }
 function updateFuel(){
