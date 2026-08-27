@@ -459,17 +459,17 @@ async function refreshData() {
 }
 
 function updateStats() {
-  let pending = 0, app1 = 0, app2 = 0, rej = 0;
+  let pending = 0, appPartial = 0, appFinal = 0, rej = 0;
   allSubmissions.forEach(s => {
     const st = s.approvalStatus || 'pending';
     if(st === 'pending') pending++;
-    else if(st === 'approved1') app1++;
-    else if(st === 'approved2') app2++;
+    else if(st === 'approved1' || st === 'approved_by_2') appPartial++;
+    else if(st === 'approved' || st === 'approved2') appFinal++;
     else if(st === 'rejected') rej++;
   });
   document.getElementById('cntPending').textContent = pending;
-  document.getElementById('cntApproved1').textContent = app1;
-  document.getElementById('cntApproved2').textContent = app2;
+  document.getElementById('cntApproved1').textContent = appPartial;
+  document.getElementById('cntApproved2').textContent = appFinal;
   document.getElementById('cntRejected').textContent = rej;
 }
 
@@ -484,7 +484,11 @@ function filterData() {
   
   const filtered = allSubmissions.filter(item => {
     const st = item.approvalStatus || 'pending';
-    if(activeTab !== 'ALL' && st !== activeTab) return false;
+    if(activeTab !== 'ALL') {
+      if(activeTab === 'approved2' && st !== 'approved2' && st !== 'approved') return false;
+      else if(activeTab === 'approved1' && st !== 'approved1' && st !== 'approved_by_2') return false;
+      else if(activeTab !== 'approved2' && activeTab !== 'approved1' && st !== activeTab) return false;
+    }
     
     if(q) {
       const match = (item.noForm||'').toLowerCase().includes(q) ||
@@ -501,10 +505,10 @@ function filterData() {
 
 function getStatusBadge(st) {
   st = st || 'pending';
-  if(st === 'pending') return '<span class="badge pending">⏳ Menunggu Approval (Paralel)</span>';
+  if(st === 'pending') return '<span class="badge pending">⏳ Menunggu Approval</span>';
   if(st === 'approved1') return '<span class="badge approved1">🔵 Disetujui Approver 1 (Menunggu Approver 2)</span>';
-  if(st === 'approved2') return '<span class="badge approved1">🔵 Disetujui Approver 2 (Menunggu Approver 1)</span>';
-  if(st === 'approved') return '<span class="badge approved2">✅ Disetujui Final</span>';
+  if(st === 'approved_by_2') return '<span class="badge approved1">🔵 Disetujui Approver 2 (Menunggu Approver 1)</span>';
+  if(st === 'approved' || st === 'approved2') return '<span class="badge approved2">✅ Disetujui Final</span>';
   if(st === 'rejected') return '<span class="badge rejected">❌ Ditolak</span>';
   return `<span class="badge">${st}</span>`;
 }
