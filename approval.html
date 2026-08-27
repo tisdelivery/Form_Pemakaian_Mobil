@@ -160,6 +160,7 @@
     </div>
     <div style="display:flex;gap:8px;">
       <button id="adminUserMgmtBtn" class="btn btn-secondary" onclick="openUserMgmtModal()" style="display:none;">👥 Kelola User/Approver</button>
+      <button id="adminHistoryLogBtn" class="btn btn-secondary" onclick="openDeletionLogModal()" style="display:none;background:#495057;color:#fff;">📜 History Log Hapus</button>
       <button class="btn btn-orange" id="btnRefreshData" onclick="forceRefreshData()">🔄 Refresh Data</button>
     </div>
   </div>
@@ -282,6 +283,41 @@
   </div>
 </div>
 
+<!-- MODAL HISTORY LOG HAPUS (SUPER ADMIN) -->
+<div class="modal-overlay" id="deletionLogModal">
+  <div class="modal" style="width:750px;max-width:95%;">
+    <div class="modal-head">
+      <h3>📜 History Log Penghapusan Data (Super Admin)</h3>
+      <button class="modal-close" onclick="closeDeletionLogModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12.5px;color:#666;margin-bottom:12px;">
+        Catatan audit riwayat pengajuan (termasuk data tester) yang telah dihapus oleh Super Admin:
+      </div>
+      <div style="max-height:350px;overflow-y:auto;">
+        <table class="table" style="font-size:12.5px;width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f5f5f5;">
+              <th style="padding:8px;text-align:left;">No. Form</th>
+              <th style="padding:8px;text-align:left;">Peminjam</th>
+              <th style="padding:8px;text-align:left;">Dihapus Oleh</th>
+              <th style="padding:8px;text-align:left;">Waktu Hapus</th>
+              <th style="padding:8px;text-align:left;">Alasan / Catatan</th>
+            </tr>
+          </thead>
+          <tbody id="deletionLogTbody">
+            <!-- Rendered by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot" style="display:flex;justify-content:space-between;padding:12px 16px;">
+      <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;" onclick="clearDeletionLogs()">🗑️ Bersihkan History Log</button>
+      <button class="btn btn-ghost" onclick="closeDeletionLogModal()">Tutup</button>
+    </div>
+  </div>
+</div>
+
 <script>
 
 // Default Accounts jika belum ada di localStorage
@@ -338,8 +374,10 @@ function checkSession() {
     
     if(currentUser.role === 'admin') {
       document.getElementById('adminUserMgmtBtn').style.display = 'inline-flex';
+      document.getElementById('adminHistoryLogBtn').style.display = 'inline-flex';
     } else {
       document.getElementById('adminUserMgmtBtn').style.display = 'none';
+      document.getElementById('adminHistoryLogBtn').style.display = 'none';
     }
 
     loadDataWithCache();
@@ -520,6 +558,8 @@ function renderTable(items) {
     return;
   }
 
+  const isAdmin = currentUser && currentUser.role === 'admin';
+
   tbody.innerHTML = items.map(item => `
     <tr>
       <td><strong style="font-family:var(--mono);color:var(--red);">${item.noForm}</strong></td>
@@ -532,6 +572,7 @@ function renderTable(items) {
         <button class="btn btn-orange" style="padding:4px 10px;font-size:11px;" onclick="openDetailByNoForm('${item.noForm}')">
           👁️ Detail &amp; Aksi
         </button>
+        ${isAdmin ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px;margin-left:4px;" onclick="deleteSubmission('${item.noForm}', '${item.nama}')">🗑️ Hapus</button>` : ''}
       </td>
     </tr>
   `).join('');
@@ -896,6 +937,98 @@ async function deleteUser(idx) {
   }
 
   renderUserList();
+}
+
+/* ============================================================
+   DELETION LOG & SUPER ADMIN DELETE FEATURE
+   ============================================================ */
+function getDeletionLogs() {
+  const saved = localStorage.getItem('ism_deletion_logs');
+  if(!saved) return [];
+  try { return JSON.parse(saved); } catch(e) { return []; }
+}
+
+function saveDeletionLog(logEntry) {
+  const logs = getDeletionLogs();
+  logs.unshift(logEntry);
+  localStorage.setItem('ism_deletion_logs', JSON.stringify(logs));
+}
+
+function openDeletionLogModal() {
+  document.getElementById('deletionLogModal').classList.add('open');
+  renderDeletionLogList();
+}
+
+function closeDeletionLogModal() {
+  document.getElementById('deletionLogModal').classList.remove('open');
+}
+
+function renderDeletionLogList() {
+  const tbody = document.getElementById('deletionLogTbody');
+  const logs = getDeletionLogs();
+  
+  if (!logs || logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:#888;">Belum ada riwayat penghapusan data.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = logs.map(l => `
+    <tr>
+      <td style="font-family:var(--mono);font-weight:600;color:var(--red);padding:8px;">${l.noForm}</td>
+      <td style="padding:8px;"><strong>${l.nama}</strong></td>
+      <td style="padding:8px;">${l.deletedBy}</td>
+      <td style="padding:8px;font-size:11.5px;color:#666;">${l.deletedAt}</td>
+      <td style="padding:8px;font-style:italic;color:#444;">${l.reason}</td>
+    </tr>
+  `).join('');
+}
+
+async function clearDeletionLogs() {
+  if (await customConfirm("🗑️ Kosongkan Log", "Apakah Anda yakin ingin menghapus seluruh riwayat History Log Hapus?", "🗑️")) {
+    localStorage.removeItem('ism_deletion_logs');
+    renderDeletionLogList();
+  }
+}
+
+async function deleteSubmission(noForm, namaPeminjam) {
+  if (!currentUser || currentUser.role !== 'admin') {
+    alert("Hanya Super Admin yang diizinkan menghapus pengajuan!");
+    return;
+  }
+
+  const reason = prompt(`[SUPER ADMIN] Masukkan alasan / catatan penghapusan Form "${noForm}":`, "Pengajuan Tester / Dibatalkan");
+  if (reason === null) return; // User cancelled prompt
+
+  const isOk = await customConfirm(
+    "🗑️ Hapus Pengajuan (Super Admin)",
+    `Apakah Anda yakin ingin MENGHAPUS pengajuan "${noForm}" oleh "${namaPeminjam}"?\n\nAlasan: "${reason}"\n\nData yang dihapus akan dicatat di History Log.`,
+    "🗑️"
+  );
+
+  if (!isOk) return;
+
+  try {
+    const logEntry = {
+      id: Date.now().toString(),
+      noForm: noForm,
+      nama: namaPeminjam || '-',
+      deletedBy: currentUser.nama || currentUser.username || 'Super Admin',
+      deletedAt: new Date().toLocaleString('id-ID'),
+      reason: reason || 'Pengajuan Data Tes / Dibatalkan'
+    };
+
+    saveDeletionLog(logEntry);
+
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+      const { error } = await supabaseClient.from('submissions').delete().eq('no_form', noForm);
+      if (error) console.warn("Supabase delete error:", error);
+    }
+
+    alert(`Pengajuan "${noForm}" telah berhasil dihapus & dicatat di History Log!`);
+    forceRefreshData();
+  } catch(e) {
+    alert("Gagal menghapus data: " + e.message);
+  }
 }
 </script>
 </body>
