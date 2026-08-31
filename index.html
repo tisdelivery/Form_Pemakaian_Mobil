@@ -524,9 +524,9 @@
   <div class="handover">
     <div class="col">
       <h5>DISERAHKAN OLEH (PT Integra Solusi Mandiri)</h5>
-      <div class="field"><label style="width:80px;">Nama</label><span class="colon">:</span><input type="text" id="h_namaDari"></div>
-      <div class="field"><label style="width:80px;">Jabatan</label><span class="colon">:</span><input type="text" id="h_jabatanDari"></div>
-      <div class="field"><label style="width:80px;">Tanggal</label><span class="colon">:</span><input type="date" id="h_tglDari"></div>
+      <div class="field"><label style="width:80px;">Nama <span class="required">*</span></label><span class="colon">:</span><input type="text" id="h_namaDari" required></div>
+      <div class="field"><label style="width:80px;">Jabatan <span class="required">*</span></label><span class="colon">:</span><input type="text" id="h_jabatanDari" required></div>
+      <div class="field"><label style="width:80px;">Tanggal <span class="required">*</span></label><span class="colon">:</span><input type="date" id="h_tglDari" required></div>
       <div class="sig-pad-wrap">
         <div class="sig-label">Tanda Tangan &amp; Cap :</div>
         <canvas class="sig-canvas" id="sigDari" width="220" height="72"></canvas>
@@ -549,9 +549,9 @@
     </div>
     <div class="col">
       <h5>DITERIMA OLEH (Pengguna)</h5>
-      <div class="field"><label style="width:80px;">Nama</label><span class="colon">:</span><input type="text" id="h_namaKe"></div>
-      <div class="field"><label style="width:80px;">Jabatan</label><span class="colon">:</span><input type="text" id="h_jabatanKe"></div>
-      <div class="field"><label style="width:80px;">Tanggal</label><span class="colon">:</span><input type="date" id="h_tglKe"></div>
+      <div class="field"><label style="width:80px;">Nama <span class="required">*</span></label><span class="colon">:</span><input type="text" id="h_namaKe" required></div>
+      <div class="field"><label style="width:80px;">Jabatan <span class="required">*</span></label><span class="colon">:</span><input type="text" id="h_jabatanKe" required></div>
+      <div class="field"><label style="width:80px;">Tanggal <span class="required">*</span></label><span class="colon">:</span><input type="date" id="h_tglKe" required></div>
       <div class="sig-pad-wrap">
         <div class="sig-label">Tanda Tangan Peminjam :</div>
         <canvas class="sig-canvas" id="sigKe" width="220" height="72"></canvas>
@@ -989,7 +989,13 @@ function validateRequiredFields(){
     ['i_lokasiJemput', 'Lokasi Penjemputan'],
     ['i_lokasiKembali', 'Lokasi Pengembalian'],
     ['km_awal', 'Kilometer Awal'],
-    ['fuelLevel', 'Level Bensin']
+    ['fuelLevel', 'Level Bensin'],
+    ['h_namaDari', 'Nama Penyerah (Diserahkan Oleh)'],
+    ['h_jabatanDari', 'Jabatan Penyerah (Diserahkan Oleh)'],
+    ['h_tglDari', 'Tanggal Penyerahan'],
+    ['h_namaKe', 'Nama Penerima (Diterima Oleh)'],
+    ['h_jabatanKe', 'Jabatan Penerima (Diterima Oleh)'],
+    ['h_tglKe', 'Tanggal Penerimaan']
   ];
   for(const [id,label] of checks){
     const el = document.getElementById(id);
