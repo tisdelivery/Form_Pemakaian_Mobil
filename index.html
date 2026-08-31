@@ -586,6 +586,26 @@ document.getElementById('noForm').value = "FPM-" + Date.now().toString().slice(-
 document.getElementById('h_tglDari').value = todayLocal();
 document.getElementById('h_tglKe').value = todayLocal();
 
+// Auto sync Nama & Jabatan Pengguna ke bagian Serah Terima (Diterima Oleh)
+document.getElementById('p_nama').addEventListener('input', (e)=>{
+  const hNama = document.getElementById('h_namaKe');
+  if(!recallMode || recallUnlocked){
+    if(!hNama.dataset.manualEdited || hNama.value === ''){
+      hNama.value = e.target.value;
+    }
+  }
+});
+document.getElementById('p_jabatan').addEventListener('input', (e)=>{
+  const hJab = document.getElementById('h_jabatanKe');
+  if(!recallMode || recallUnlocked){
+    if(!hJab.dataset.manualEdited || hJab.value === ''){
+      hJab.value = e.target.value;
+    }
+  }
+});
+document.getElementById('h_namaKe').addEventListener('input', ()=>{ document.getElementById('h_namaKe').dataset.manualEdited = 'true'; });
+document.getElementById('h_jabatanKe').addEventListener('input', ()=>{ document.getElementById('h_jabatanKe').dataset.manualEdited = 'true'; });
+
 let currentConflictInfo = null;
 
 function hitungDurasi(){
@@ -1180,8 +1200,8 @@ async function loadSubmissionForEdit(noForm){
       jenis: data.jenis, merk: data.merk, nopol: data.nopol, warna: data.warna, tahun: data.tahun,
       vin: data.vin, mesin: data.mesin,
       kmAwal: data.km_awal, levelBensin: data.level_bensin, catatanKondisi: data.catatan_kondisi,
-      namaDari: data.nama_dari, jabatanDari: data.jabatan_dari, tglDari: data.tgl_dari,
-      namaKe: data.nama_ke, jabatanKe: data.jabatan_ke, tglKe: data.tgl_ke,
+      namaDari: data.nama_dari, jabatanDari: data.jabatan_dari, tglDari: data.tgl_dari, ttdDari: data.ttd_dari,
+      namaKe: data.nama_ke, jabatanKe: data.jabatan_ke, tglKe: data.tgl_ke, ttdKe: data.ttd_ke,
       stnk: data.stnk, kunciCadangan: data.kunci_cadangan, dongkrak: data.dongkrak, banSerep: data.ban_serep,
       segitiga: data.segitiga, p3k: data.p3k, lainnya: data.lainnya,
       fotoSimUrl: data.foto_sim_url, approvalStatus: data.approval_status, token: data.token
@@ -1201,6 +1221,20 @@ async function loadSubmissionForEdit(noForm){
   }catch(e){
     document.getElementById('statusText').textContent = "Gagal memuat data ❌";
   }
+}
+
+function drawSigFromData(id, dataUrl){
+  const pad = sigPads[id];
+  if(!pad) return;
+  pad.ctx.clearRect(0,0,pad.canvas.width,pad.canvas.height);
+  pad.canvas.classList.remove('signed');
+  if(!dataUrl) return;
+  const img = new Image();
+  img.onload = ()=>{
+    pad.ctx.drawImage(img, 0, 0, pad.canvas.width / (window.devicePixelRatio||1), pad.canvas.height / (window.devicePixelRatio||1));
+    pad.canvas.classList.add('signed');
+  };
+  img.src = dataUrl;
 }
 
 function populateFormFromData(d){
@@ -1239,6 +1273,10 @@ function populateFormFromData(d){
   document.getElementById('k_p3k').checked = !!d.p3k;
   document.getElementById('k_lainnyaChk').checked = !!d.lainnya;
   document.getElementById('k_lainnyaTxt').value = d.lainnya || '';
+
+  // Render Tanda Tangan Canvas jika ada
+  drawSigFromData('sigDari', d.ttdDari);
+  drawSigFromData('sigKe', d.ttdKe);
 
   removeSim();
   if(d.fotoSimUrl){
@@ -1324,6 +1362,9 @@ async function updateRecallData(){
     p3k: payload.serahTerima.kelengkapan.p3k,
     lainnya: payload.serahTerima.kelengkapan.lainnya
   };
+
+  if(payload.serahTerima.ttdDari) updateRow.ttd_dari = payload.serahTerima.ttdDari;
+  if(payload.serahTerima.ttdKe) updateRow.ttd_ke = payload.serahTerima.ttdKe;
 
   if(simUrl) {
     updateRow.foto_sim_url = simUrl;
