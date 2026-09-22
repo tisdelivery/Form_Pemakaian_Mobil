@@ -322,18 +322,44 @@
 
 // Default Accounts jika belum ada di localStorage
 const DEFAULT_USERS = [
-  { username: 'admin', password: 'integra2026', nama: 'Super Admin (Bu Devry)', role: 'admin', email: 'devry.handayani@integrasolution.id' },
-  { username: 'approver1', password: 'approver123', nama: 'Pak Sanny (Approver 1)', role: 'approver1', email: 'sanny.anshory@integrasolution.id' },
-  { username: 'approver2', password: 'approver123', nama: 'Ibu Gita (Approver 2)', role: 'approver2', email: 'gita.lenggogeni@integrasolution.id' }
+  { username: 'admin', password: 'integra2026', nama: 'Super Admin', role: 'admin', email: 'devry.handayani@integrasolution.id' },
+  { username: 'approver1', password: 'approver123', nama: 'Sanny Anshory (Approver 1)', role: 'approver1', email: 'sanny.anshory@integrasolution.id' },
+  { username: 'approver2', password: 'approver123', nama: 'Gita Lenggogeni (Approver 2)', role: 'approver2', email: 'gita.lenggogeni@integrasolution.id' }
 ];
 
 function getUsers() {
   const saved = localStorage.getItem('ism_approver_users');
-  if(!saved) {
-    localStorage.setItem('ism_approver_users', JSON.stringify(DEFAULT_USERS));
-    return DEFAULT_USERS;
+  let users = DEFAULT_USERS;
+  if(saved) {
+    try {
+      users = JSON.parse(saved);
+    } catch(e) {
+      users = DEFAULT_USERS;
+    }
   }
-  return JSON.parse(saved);
+
+  // Normalisasi & perbarui nama lama (tanpa Pak/Bu/Om)
+  let updated = false;
+  users = users.map(u => {
+    if(u.role === 'approver1' || u.username === 'approver1' || u.username === 'Sanny') {
+      if(u.nama !== 'Sanny Anshory (Approver 1)' && (u.nama.includes('Sanny') || u.nama.includes('Pak') || u.nama.includes('Om'))) {
+        u.nama = 'Sanny Anshory (Approver 1)';
+        updated = true;
+      }
+    }
+    if(u.role === 'approver2' || u.username === 'approver2' || (u.username && u.username.includes('gita'))) {
+      if(u.nama !== 'Gita Lenggogeni (Approver 2)' && (u.nama.includes('Gita') || u.nama.includes('Lenggo') || u.nama.includes('Bu'))) {
+        u.nama = 'Gita Lenggogeni (Approver 2)';
+        updated = true;
+      }
+    }
+    return u;
+  });
+
+  if(updated || !saved) {
+    localStorage.setItem('ism_approver_users', JSON.stringify(users));
+  }
+  return users;
 }
 function saveUsers(users) {
   localStorage.setItem('ism_approver_users', JSON.stringify(users));
@@ -366,6 +392,18 @@ function checkSession() {
   const saved = sessionStorage.getItem('ism_current_user');
   if(saved) {
     currentUser = JSON.parse(saved);
+    // Normalisasi nama di session jika masih tersimpan format lama
+    if(currentUser.role === 'approver1' || currentUser.username === 'approver1' || currentUser.username === 'Sanny') {
+      if(currentUser.nama !== 'Sanny Anshory (Approver 1)') {
+        currentUser.nama = 'Sanny Anshory (Approver 1)';
+        sessionStorage.setItem('ism_current_user', JSON.stringify(currentUser));
+      }
+    } else if(currentUser.role === 'approver2' || currentUser.username === 'approver2' || (currentUser.username && currentUser.username.includes('gita'))) {
+      if(currentUser.nama !== 'Gita Lenggogeni (Approver 2)') {
+        currentUser.nama = 'Gita Lenggogeni (Approver 2)';
+        sessionStorage.setItem('ism_current_user', JSON.stringify(currentUser));
+      }
+    }
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('dashboardScreen').style.display = 'block';
     document.getElementById('userInfoArea').style.display = 'flex';
@@ -684,16 +722,27 @@ function renderModalDetail(d, tokenOverride, roleOverride) {
       <tr><td>Kendaraan</td><td>${d.merk} (${d.nopol}) - ${d.warna}</td></tr>
       <tr><td>KM Awal / Level Bensin</td><td>${d.kmAwal} KM / Bensin ${d.levelBensin}%</td></tr>
       ${d.fotoSimUrl ? `<tr><td>Foto SIM</td><td><a href="${d.fotoSimUrl}" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:none;">📷 Lihat Foto SIM ke Drive ↗</a></td></tr>` : ''}
+      ${d.approveNote1 ? `<tr><td>Catatan Approver 1</td><td><strong style="color:var(--ink);">${d.approveNote1}</strong></td></tr>` : ''}
+      ${d.approveNote2 ? `<tr><td>Catatan Approver 2</td><td><strong style="color:var(--ink);">${d.approveNote2}</strong></td></tr>` : ''}
     </table>
   `;
 
   if(canApprove) {
+    let approverLabel = 'Super Admin';
+    if(currentUser.role === 'approver1') {
+      approverLabel = 'Approver 1 (Sanny Anshory)';
+    } else if(currentUser.role === 'approver2') {
+      approverLabel = 'Approver 2 (Gita Lenggogeni)';
+    } else if(currentUser.nama) {
+      approverLabel = currentUser.nama;
+    }
+
     bodyHtml += `
       <div style="background:#fdf8f2;border:1px solid var(--orange);padding:14px;border-radius:8px;margin-top:16px;">
-        <h4 style="color:var(--orange);margin-bottom:8px;font-size:13px;">⚡ Keputusan Approval (Bertindak sebagai ${currentUser.role === 'approver1' ? 'Approver 1 (Pak Sanny)' : currentUser.role === 'approver2' ? 'Approver 2 (Bu Gita)' : 'Super Admin'})</h4>
+        <h4 style="color:var(--orange);margin-bottom:8px;font-size:13px;">⚡ Keputusan Approval (Bertindak sebagai ${approverLabel})</h4>
         <div class="form-group">
-          <label>Catatan Approver (Wajib diisi jika MENOLAK)</label>
-          <textarea id="appNote" placeholder="Tuliskan alasan penolakan / catatan persetujuan di sini..."></textarea>
+          <label>Catatan Approver <span style="color:var(--red);">*Wajib Diisi</span></label>
+          <textarea id="appNote" placeholder="Tuliskan catatan persetujuan / alasan penolakan di sini..." required></textarea>
         </div>
       </div>
     `;
@@ -725,9 +774,9 @@ function closeDetailModal() {
 async function submitApprovalAction(token, roleNum, decision) {
   const note = (document.getElementById('appNote') ? document.getElementById('appNote').value : '').trim();
   
-  if(decision === 'reject' && !note) {
-    alert('Catatan wajib diisi saat menolak pengajuan!');
-    document.getElementById('appNote').focus();
+  if(!note) {
+    alert('Catatan Approver wajib diisi (baik untuk MENYETUJUI maupun MENOLAK pengajuan)!');
+    if(document.getElementById('appNote')) document.getElementById('appNote').focus();
     return;
   }
 
