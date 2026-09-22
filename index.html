@@ -261,8 +261,6 @@
     <a href="index.html" class="active"><span class="icon">🚗</span>Form Peminjaman</a>
     <a href="form-pengembalian-mobil.html"><span class="icon">🔄</span>Form Pengembalian</a>
     <a href="approval.html"><span class="icon">✅</span>Dashboard Approval</a>
-    <div class="divider"></div>
-    <a href="#" onclick="window.open('https://docs.google.com/spreadsheets','_blank');closeSidebar();return false;"><span class="icon">📊</span>Google Sheet</a>
   </nav>
   <div class="sidebar-footer">PT Integra Solusi Mandiri &copy; 2025</div>
 </div>
@@ -906,7 +904,81 @@ async function loadVehicle(){
     if(data){ Object.keys(data).forEach(k=>{ const s=document.querySelector('[data-veh="'+k+'"]'); if(s) s.textContent=data[k]; }); }
   }catch(e){}
 }
+
+/* ---- AUTO FETCH LATEST KM & FUEL FROM LAST BORROWER ---- */
+async function loadLatestVehicleCondition(){
+  if(recallMode) return;
+  if(!supabaseClient) return;
+  try{
+    // 1. Cek pengembalian terakhir yang memiliki data km_akhir > 0
+    const { data: retData, error: retErr } = await supabaseClient
+      .from('returns')
+      .select('*')
+      .gt('km_akhir', 0)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if(!retErr && retData && retData.length > 0){
+      const lastRet = retData[0];
+      const km = lastRet.km_akhir;
+      const fuel = (lastRet.fuel_level_kembali !== null && lastRet.fuel_level_kembali !== undefined) ? lastRet.fuel_level_kembali : 50;
+      const borrower = lastRet.ref_nama || lastRet.nama_dari || 'Peminjam Sebelumnya';
+      
+      applyLatestVehicleCondition(km, fuel, borrower, 'pengembalian');
+      return;
+    }
+
+    // 2. Fallback ke peminjaman terakhir jika belum ada data pengembalian
+    const { data: subData, error: subErr } = await supabaseClient
+      .from('submissions')
+      .select('*')
+      .gt('km_awal', 0)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if(!subErr && subData && subData.length > 0){
+      const lastSub = subData[0];
+      const km = lastSub.km_awal;
+      const fuel = (lastSub.level_bensin !== null && lastSub.level_bensin !== undefined) ? lastSub.level_bensin : 50;
+      const borrower = lastSub.nama || 'Peminjam Sebelumnya';
+
+      applyLatestVehicleCondition(km, fuel, borrower, 'peminjaman');
+    }
+  }catch(err){
+    console.warn("Gagal memuat kondisi kendaraan terakhir:", err);
+  }
+}
+
+function applyLatestVehicleCondition(km, fuel, borrower, type){
+  const kmEl = document.getElementById('km_awal');
+  const fuelEl = document.getElementById('fuelLevel');
+  
+  if(kmEl && !kmEl.value){
+    kmEl.value = km;
+  }
+  if(fuelEl){
+    fuelEl.value = fuel;
+    updateFuel();
+  }
+
+  // Tampilkan badge info di bawah input Kilometer Awal
+  let badge = document.getElementById('latestKmBadge');
+  if(!badge && kmEl){
+    badge = document.createElement('div');
+    badge.id = 'latestKmBadge';
+    badge.style.cssText = 'margin-top:6px;padding:6px 10px;background:#eef7ee;border:1px solid #c3e6cb;border-radius:5px;color:#1e7a3c;font-size:11.5px;line-height:1.4;';
+    const parentField = kmEl.closest('.field') || kmEl.parentElement;
+    if(parentField && parentField.parentNode){
+      parentField.parentNode.insertBefore(badge, parentField.nextSibling);
+    }
+  }
+  if(badge){
+    badge.innerHTML = `💡 <b>Sinkronisasi Riwayat:</b> KM Awal (<b>${Number(km).toLocaleString('id-ID')} km</b>) & Level Bensin (<b>${fuel}%</b>) otomatis terisi dari riwayat ${type} terakhir oleh <b>${borrower}</b>. <i>(Dapat diedit jika ada perubahan)</i>`;
+  }
+}
+
 loadVehicle();
+loadLatestVehicleCondition();
 
 /* ---- COLLECT DATA ---- */
 function collectFormData(){
