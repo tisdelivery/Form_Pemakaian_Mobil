@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 
 -- Insert Default Users
 INSERT INTO public.users (username, password, nama, email, role) VALUES
-('admin', 'integra2026', 'Super Admin', 'admin@integrasolution.id', 'admin'),
+('admin', 'integra2026', 'Super Admin', 'adminprojecttis@gmail.com', 'admin'),
 ('approver1', 'approver123', 'Sanny Anshory (Approver 1)', 'sanny.anshory@integrasolution.id', 'approver1'),
 ('approver2', 'approver123', 'Gita Lenggogeni (Approver 2)', 'gita.lenggogeni@integrasolution.id', 'approver2')
 ON CONFLICT (username) DO NOTHING;

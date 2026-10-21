@@ -322,7 +322,7 @@
 
 // Default Accounts jika belum ada di localStorage
 const DEFAULT_USERS = [
-  { username: 'admin', password: 'integra2026', nama: 'Super Admin', role: 'admin', email: 'devry.handayani@integrasolution.id' },
+  { username: 'admin', password: 'integra2026', nama: 'Super Admin', role: 'admin', email: 'adminprojecttis@gmail.com' },
   { username: 'approver1', password: 'approver123', nama: 'Sanny Anshory (Approver 1)', role: 'approver1', email: 'sanny.anshory@integrasolution.id' },
   { username: 'approver2', password: 'approver123', nama: 'Gita Lenggogeni (Approver 2)', role: 'approver2', email: 'gita.lenggogeni@integrasolution.id' }
 ];
@@ -338,9 +338,15 @@ function getUsers() {
     }
   }
 
-  // Normalisasi & perbarui nama lama (tanpa Pak/Bu/Om)
+  // Normalisasi & perbarui nama lama (tanpa Pak/Bu/Om) & email admin
   let updated = false;
   users = users.map(u => {
+    if(u.role === 'admin' || u.username === 'admin') {
+      if(u.email !== 'adminprojecttis@gmail.com') {
+        u.email = 'adminprojecttis@gmail.com';
+        updated = true;
+      }
+    }
     if(u.role === 'approver1' || u.username === 'approver1' || u.username === 'Sanny') {
       if(u.nama !== 'Sanny Anshory (Approver 1)' && (u.nama.includes('Sanny') || u.nama.includes('Pak') || u.nama.includes('Om'))) {
         u.nama = 'Sanny Anshory (Approver 1)';
