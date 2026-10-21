@@ -247,6 +247,28 @@
     .active-loan-box{border:1px solid #999;}
   }
 
+  /* FOTO UPLOAD BOX */
+  .sim-upload-box{
+    border:2px dashed var(--green);border-radius:8px;padding:12px 16px;
+    background:#f4fbf6;margin-bottom:8px;
+  }
+  .sim-upload-box .sim-title{font-size:12.5px;font-weight:700;color:var(--green);margin-bottom:8px;}
+  .sim-upload-box .sim-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+  .sim-upload-box .sim-btns button{
+    font-size:12px;padding:6px 14px;border-radius:5px;border:1px solid var(--green);
+    background:#fff;color:var(--green);cursor:pointer;font-weight:600;
+  }
+  .sim-upload-box .sim-btns button:hover{background:var(--green);color:#fff;}
+  .sim-preview{display:none;position:relative;margin-top:6px;}
+  .sim-preview img{width:100%;max-height:160px;object-fit:cover;border-radius:5px;border:1px solid var(--line);}
+  .sim-preview .sim-remove{
+    position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;
+    border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .sim-hint{font-size:11px;color:#888;}
+  input[type=file]{display:none;}
+
   .pdf-block{break-inside:avoid;page-break-inside:avoid;}
   .header,.veh-card,.handover,.section-title{break-inside:avoid;page-break-inside:avoid;}
 </style>
@@ -404,6 +426,22 @@
           <div class="field" style="margin-top:6px;">
             <label>Level Bensin Kembali (%)</label><span class="colon">:</span>
             <input type="number" class="fuel-level-input" id="fuelLevelRet" min="0" max="100" value="50" oninput="updateFuelRet()">
+          </div>
+
+          <!-- FOTO INDIKATOR BENSIN KEMBALI -->
+          <div class="sim-upload-box" style="margin-top:10px;">
+            <div class="sim-title">⛽ Foto Indikator Bensin Kembali</div>
+            <div class="sim-btns no-print">
+              <button type="button" id="bensinRetCamBtn" onclick="document.getElementById('bensinRetCamera').click()">📷 Kamera</button>
+              <button type="button" id="bensinRetFileBtn" onclick="document.getElementById('bensinRetFile').click()">📁 Upload File</button>
+            </div>
+            <input type="file" id="bensinRetCamera" accept="image/*" capture="environment" onchange="handleBensinRetUpload(this)">
+            <input type="file" id="bensinRetFile" accept="image/*" onchange="handleBensinRetUpload(this)">
+            <div class="sim-preview" id="bensinRetPreview">
+              <img id="bensinRetImg" src="" alt="Foto Indikator Bensin Kembali">
+              <button type="button" class="sim-remove no-print" onclick="removeBensinRet()" title="Hapus foto">✕</button>
+            </div>
+            <div class="sim-hint no-print" id="bensinRetHint">Foto indikator bensin saat mobil dikembalikan.</div>
           </div>
         </div>
       </div>
@@ -731,7 +769,74 @@ function onLoanSelected(){
   cekKeterlambatan();
 }
 
-/* ---- FUEL GAUGE PENGEMBALIAN ---- */
+/* ---- FUEL GAUGE & FOTO BENSIN PENGEMBALIAN ---- */
+let bensinRetBase64 = null;
+
+function handleBensinRetUpload(input){
+  const file = input.files[0];
+  if(!file) return;
+
+  if(!file.type.startsWith('image/')){
+    alert("File \""+file.name+"\" bukan format gambar yang didukung (JPG/PNG/WEBP).");
+    input.value = '';
+    return;
+  }
+
+  document.getElementById('bensinRetHint').textContent = "⏳ Memproses foto...";
+
+  const reader = new FileReader();
+  reader.onerror = () => {
+    alert("Gagal membaca file \""+file.name+"\".");
+    document.getElementById('bensinRetHint').textContent = 'Foto indikator bensin saat pengembalian.';
+    input.value = '';
+  };
+  reader.onload = e => {
+    const img = new Image();
+    img.onerror = () => {
+      alert("Foto tidak bisa diproses. Gunakan format JPG/PNG.");
+      document.getElementById('bensinRetHint').textContent = 'Foto indikator bensin saat pengembalian.';
+      input.value = '';
+    };
+    img.onload = () => {
+      const maxW = 800;
+      let w = img.width, h = img.height;
+      if(w > maxW){ h = Math.round(h*maxW/w); w = maxW; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      bensinRetBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      document.getElementById('bensinRetImg').src = bensinRetBase64;
+      document.getElementById('bensinRetPreview').style.display = 'block';
+      document.getElementById('bensinRetHint').textContent = `✅ ${file.name} (${(bensinRetBase64.length/1024).toFixed(0)} KB)`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function removeBensinRet(){
+  bensinRetBase64 = null;
+  document.getElementById('bensinRetPreview').style.display = 'none';
+  document.getElementById('bensinRetHint').textContent = 'Foto indikator bensin saat mobil dikembalikan.';
+}
+
+async function uploadBensinRetToSupabase(base64Data, filename) {
+  if (!base64Data || !supabaseClient) return null;
+  try {
+    const res = await fetch(base64Data);
+    const blob = await res.blob();
+    const filePath = `ret_bensin_${Date.now()}_${filename || 'photo'}.jpg`;
+    const { data, error } = await supabaseClient.storage.from('sim-photos').upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) throw error;
+    const { data: publicUrlData } = supabaseClient.storage.from('sim-photos').getPublicUrl(filePath);
+    return publicUrlData.publicUrl;
+  } catch (e) {
+    console.error('Upload Bensin Pengembalian error:', e);
+    return null;
+  }
+}
+
 function updateFuelRet(){
   let v = parseInt(document.getElementById('fuelLevelRet').value || 0);
   v = Math.max(0, Math.min(100, v));
@@ -837,6 +942,11 @@ async function submitReturn(){
 
   document.getElementById('statusText').textContent = "Menyimpan ke Supabase...";
   const payload = collectReturnData();
+
+  let bensinRetUrl = null;
+  if(bensinRetBase64) {
+    bensinRetUrl = await uploadBensinRetToSupabase(bensinRetBase64, payload.noFormRet);
+  }
   
   const parseNum = (val, fallback = 0) => {
     if (!val) return fallback;
@@ -877,9 +987,20 @@ async function submitReturn(){
     lainnya: payload.serahTerima.kelengkapan.lainnya
   };
 
+  if(bensinRetUrl) {
+    row.foto_bensin_kembali_url = bensinRetUrl;
+  }
+
   try{
-    const { error } = await supabaseClient.from('returns').insert([row]);
-    if(error) throw error;
+    let insertRet = await supabaseClient.from('returns').insert([row]);
+    if(insertRet.error && (insertRet.error.message.includes('foto_bensin_kembali_url') || insertRet.error.code === '42703')) {
+      delete row.foto_bensin_kembali_url;
+      if(bensinRetUrl) {
+        row.kondisi_kembali = (row.kondisi_kembali ? row.kondisi_kembali + ' | ' : '') + `[Foto Indikator Bensin Kembali: ${bensinRetUrl}]`;
+      }
+      insertRet = await supabaseClient.from('returns').insert([row]);
+    }
+    if(insertRet.error) throw insertRet.error;
     document.getElementById('statusText').textContent = "Pengembalian tersimpan ke Supabase ✅ (" + new Date().toLocaleTimeString('id-ID') + ")";
     const sel = document.getElementById('loanSelect');
     sel.remove(sel.selectedIndex);

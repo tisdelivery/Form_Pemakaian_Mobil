@@ -361,33 +361,55 @@
       <div class="field"><label>No. KTP</label><span class="colon">:</span><input type="text" id="p_ktp"></div>
       <div class="field"><label>No. Telepon</label><span class="colon">:</span><input type="tel" id="p_telp"></div>
       <div class="field"><label>Email <span class="required">*</span></label><span class="colon">:</span><input type="email" id="p_email" required></div>
+    </div>
 
+    <div>
+      <div class="field"><label>Tujuan Penggunaan</label><span class="colon">:</span><input type="text" id="i_tujuan"></div>
+      <div class="field"><label>Tanggal Peminjaman <span class="required">*</span></label><span class="colon">:</span><input type="date" id="i_tglMulai" required onchange="hitungDurasi()"></div>
+      <div class="field"><label>Jam Peminjaman <span class="required">*</span></label><span class="colon">:</span><input type="time" id="i_waktuMulai" required></div>
+      <div class="field"><label>Tanggal Pengembalian <span class="required">*</span></label><span class="colon">:</span><input type="date" id="i_tglSelesai" required onchange="hitungDurasi()"></div>
+      <div class="field"><label>Estimasi Jam Pengembalian <span class="required">*</span></label><span class="colon">:</span><input type="time" id="i_waktuSelesai" required></div>
+      <div class="field"><label>Durasi (Hari)</label><span class="colon">:</span><input type="number" id="i_durasi" min="0"></div>
+      <div class="field"><label>Lokasi Penjemputan <span class="required">*</span></label><span class="colon">:</span><input type="text" id="i_lokasiJemput" required></div>
+      <div class="field"><label>Lokasi Pengembalian <span class="required">*</span></label><span class="colon">:</span><input type="text" id="i_lokasiKembali" required></div>
+    </div>
+  </div>
+
+  <!-- LAMPIRAN FOTO WAJIB (FOTO SIM & FOTO INDIKATOR BENSIN) -->
+  <div style="margin-top:14px;padding:0 24px;">
+    <div style="font-size:12.5px;font-weight:700;color:var(--red);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">📷 Lampiran Foto Wajib :</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:14px;">
       <!-- FOTO SIM -->
-      <div class="sim-upload-box">
-        <div class="sim-title">📷 Foto SIM</div>
+      <div class="sim-upload-box" style="margin-bottom:0;">
+        <div class="sim-title">📷 Foto SIM <span class="required">*</span></div>
         <div class="sim-btns no-print">
-          <button id="simCamBtn" onclick="document.getElementById('simCamera').click()">📷 Kamera</button>
-          <button id="simFileBtn" onclick="document.getElementById('simFile').click()">📁 Upload File</button>
+          <button type="button" id="simCamBtn" onclick="document.getElementById('simCamera').click()">📷 Kamera</button>
+          <button type="button" id="simFileBtn" onclick="document.getElementById('simFile').click()">📁 Upload File</button>
         </div>
         <input type="file" id="simCamera" accept="image/*" capture="environment" onchange="handleSimUpload(this)">
         <input type="file" id="simFile" accept="image/*" onchange="handleSimUpload(this)">
         <div class="sim-preview" id="simPreview">
           <img id="simImg" src="" alt="Foto SIM">
-          <button class="sim-remove no-print" onclick="removeSim()" title="Hapus foto">✕</button>
+          <button type="button" class="sim-remove no-print" onclick="removeSim()" title="Hapus foto">✕</button>
         </div>
-        <div class="sim-hint no-print" id="simHint">Belum ada foto SIM. Ambil foto atau upload file.</div>
+        <div class="sim-hint no-print" id="simHint">Wajib melampirkan foto SIM peminjam. Ambil foto atau upload file.</div>
       </div>
-    </div>
 
-    <div>
-      <div class="field"><label>Tujuan Penggunaan</label><span class="colon">:</span><input type="text" id="i_tujuan"></div>
-      <div class="field"><label>Tanggal Mulai</label><span class="colon">:</span><input type="date" id="i_tglMulai" onchange="hitungDurasi()"></div>
-      <div class="field"><label>Waktu Mulai</label><span class="colon">:</span><input type="time" id="i_waktuMulai"></div>
-      <div class="field"><label>Tanggal Selesai</label><span class="colon">:</span><input type="date" id="i_tglSelesai" onchange="hitungDurasi()"></div>
-      <div class="field"><label>Waktu Selesai</label><span class="colon">:</span><input type="time" id="i_waktuSelesai"></div>
-      <div class="field"><label>Durasi (Hari)</label><span class="colon">:</span><input type="number" id="i_durasi" min="0"></div>
-      <div class="field"><label>Lokasi Penjemputan <span class="required">*</span></label><span class="colon">:</span><input type="text" id="i_lokasiJemput" required></div>
-      <div class="field"><label>Lokasi Pengembalian <span class="required">*</span></label><span class="colon">:</span><input type="text" id="i_lokasiKembali" required></div>
+      <!-- FOTO INDIKATOR BENSIN -->
+      <div class="sim-upload-box" style="margin-bottom:0;">
+        <div class="sim-title">⛽ Foto Indikator Bensin <span class="required">*</span></div>
+        <div class="sim-btns no-print">
+          <button type="button" id="bensinCamBtn" onclick="document.getElementById('bensinCamera').click()">📷 Kamera</button>
+          <button type="button" id="bensinFileBtn" onclick="document.getElementById('bensinFile').click()">📁 Upload File</button>
+        </div>
+        <input type="file" id="bensinCamera" accept="image/*" capture="environment" onchange="handleBensinUpload(this)">
+        <input type="file" id="bensinFile" accept="image/*" onchange="handleBensinUpload(this)">
+        <div class="sim-preview" id="bensinPreview">
+          <img id="bensinImg" src="" alt="Foto Indikator Bensin">
+          <button type="button" class="sim-remove no-print" onclick="removeBensin()" title="Hapus foto">✕</button>
+        </div>
+        <div class="sim-hint no-print" id="bensinHint">Wajib melampirkan foto indikator bensin mobil. Ambil foto atau upload file.</div>
+      </div>
     </div>
   </div>
   <div id="conflictWarningBanner" style="display:none;margin-top:12px;padding:12px 16px;background:#fff3cd;border:1px solid #ffeeba;color:#856404;border-radius:8px;font-size:13px;line-height:1.5;"></div>
@@ -422,6 +444,12 @@
           <div class="field" style="margin-top:6px;">
             <label>Level Bensin (%) <span class="required">*</span></label><span class="colon">:</span>
             <input type="number" class="fuel-level-input" id="fuelLevel" min="0" max="100" value="50" oninput="updateFuel()">
+          </div>
+
+          <!-- STATUS FOTO INDIKATOR BENSIN -->
+          <div id="fuelPhotoStatusSec3" style="font-size:12px;margin-top:10px;background:#fdf8f2;padding:10px 12px;border-radius:6px;border:1px dashed var(--orange);line-height:1.4;">
+            ⛽ <b>Foto Indikator Bensin:</b><br>
+            <span id="fuelPhotoTextSec3" style="color:var(--orange);">Wajib dilampirkan pada kotak upload foto di atas ⬆️</span>
           </div>
         </div>
       </div>
@@ -677,15 +705,16 @@ function updateFuel(){
   document.getElementById('fuelFill').style.width = v+"%";
 }
 
-/* ---- FOTO SIM ---- */
+/* ---- FOTO SIM & FOTO INDIKATOR BENSIN ---- */
 let simBase64 = null;
+let bensinBase64 = null;
+let loadedSimUrl = null;
+let loadedBensinUrl = null;
+
 function handleSimUpload(input){
   const file = input.files[0];
   if(!file) return;
 
-  // BUG FIX: dulu tidak ada validasi tipe file — kalau user (lewat "Upload
-  // File") pilih file yang bukan gambar (mis. PDF/HEIC yang tidak didukung
-  // <canvas>), proses gagal total diam-diam tanpa pesan apa pun ke user.
   if(!file.type.startsWith('image/')){
     alert("File \""+file.name+"\" bukan format gambar yang didukung (JPG/PNG/WEBP). Kalau ini foto dari iPhone, pastikan formatnya JPEG (Settings → Camera → Formats → Most Compatible), bukan HEIC.");
     input.value = '';
@@ -695,22 +724,16 @@ function handleSimUpload(input){
   document.getElementById('simHint').textContent = "⏳ Memproses foto...";
 
   const reader = new FileReader();
-  // BUG FIX: dulu tidak ada penanganan error FileReader — kalau file rusak/
-  // gagal dibaca, tidak ada feedback ke user sama sekali (terlihat seperti
-  // tombol tidak berfungsi).
   reader.onerror = () => {
     alert("Gagal membaca file \""+file.name+"\". Coba pilih file lain.");
-    document.getElementById('simHint').textContent = 'Belum ada foto SIM. Ambil foto atau upload file.';
+    document.getElementById('simHint').textContent = 'Wajib melampirkan foto SIM. Ambil foto atau upload file.';
     input.value = '';
   };
   reader.onload = e => {
     const img = new Image();
-    // BUG FIX: dulu tidak ada penanganan error saat gambar gagal di-decode
-    // (mis. format HEIC yang tidak didukung <canvas> di browser desktop) —
-    // hasilnya upload terlihat "diam saja", padahal sebenarnya gagal total.
     img.onerror = () => {
       alert("Foto \""+file.name+"\" tidak bisa diproses (kemungkinan format tidak didukung browser). Coba screenshot foto tersebut lalu upload ulang, atau gunakan format JPG/PNG.");
-      document.getElementById('simHint').textContent = 'Belum ada foto SIM. Ambil foto atau upload file.';
+      document.getElementById('simHint').textContent = 'Wajib melampirkan foto SIM. Ambil foto atau upload file.';
       input.value = '';
     };
     img.onload = () => {
@@ -731,10 +754,65 @@ function handleSimUpload(input){
   reader.readAsDataURL(file);
   input.value = '';
 }
+
 function removeSim(){
   simBase64 = null;
   document.getElementById('simPreview').style.display = 'none';
   document.getElementById('simHint').textContent = 'Belum ada foto SIM.';
+}
+
+function handleBensinUpload(input){
+  const file = input.files[0];
+  if(!file) return;
+
+  if(!file.type.startsWith('image/')){
+    alert("File \""+file.name+"\" bukan format gambar yang didukung (JPG/PNG/WEBP). Kalau ini foto dari iPhone, pastikan formatnya JPEG, bukan HEIC.");
+    input.value = '';
+    return;
+  }
+
+  document.getElementById('bensinHint').textContent = "⏳ Memproses foto...";
+
+  const reader = new FileReader();
+  reader.onerror = () => {
+    alert("Gagal membaca file \""+file.name+"\". Coba pilih file lain.");
+    document.getElementById('bensinHint').textContent = 'Wajib melampirkan foto indikator bensin. Ambil foto atau upload file.';
+    input.value = '';
+  };
+  reader.onload = e => {
+    const img = new Image();
+    img.onerror = () => {
+      alert("Foto \""+file.name+"\" tidak bisa diproses (kemungkinan format tidak didukung browser). Coba screenshot foto tersebut lalu upload ulang, atau gunakan format JPG/PNG.");
+      document.getElementById('bensinHint').textContent = 'Wajib melampirkan foto indikator bensin. Ambil foto atau upload file.';
+      input.value = '';
+    };
+    img.onload = () => {
+      // Resize gambar sebelum disimpan (max 800px lebar, JPEG 0.7)
+      const maxW = 800;
+      let w = img.width, h = img.height;
+      if(w > maxW){ h = Math.round(h*maxW/w); w = maxW; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      bensinBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      document.getElementById('bensinImg').src = bensinBase64;
+      document.getElementById('bensinPreview').style.display = 'block';
+      document.getElementById('bensinHint').textContent = `✅ ${file.name} (${(bensinBase64.length/1024).toFixed(0)} KB)`;
+      const stEl = document.getElementById('fuelPhotoTextSec3');
+      if(stEl) { stEl.style.color = 'var(--green)'; stEl.textContent = `✅ Foto dilampirkan: ${file.name}`; }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function removeBensin(){
+  bensinBase64 = null;
+  document.getElementById('bensinPreview').style.display = 'none';
+  document.getElementById('bensinHint').textContent = 'Belum ada foto indikator bensin.';
+  const stEl = document.getElementById('fuelPhotoTextSec3');
+  if(stEl) { stEl.style.color = 'var(--orange)'; stEl.textContent = 'Wajib dilampirkan pada kotak upload foto di atas ⬆️'; }
 }
 
 /* ---- SIGNATURE PAD ---- */
@@ -1032,11 +1110,12 @@ function collectFormData(){
         lainnya: document.getElementById('k_lainnyaChk').checked ? document.getElementById('k_lainnyaTxt').value : ""
       }
     },
-    fotoSim: simBase64
+    fotoSim: simBase64,
+    fotoBensin: bensinBase64
   };
 }
 
-/* ---- UPLOAD SIM FOTO TO SUPABASE STORAGE ---- */
+/* ---- UPLOAD FOTO TO SUPABASE STORAGE ---- */
 async function uploadSimToSupabase(base64Data, filename) {
   if (!base64Data || !supabaseClient) return null;
   try {
@@ -1053,11 +1132,31 @@ async function uploadSimToSupabase(base64Data, filename) {
   }
 }
 
+async function uploadBensinToSupabase(base64Data, filename) {
+  if (!base64Data || !supabaseClient) return null;
+  try {
+    const res = await fetch(base64Data);
+    const blob = await res.blob();
+    const filePath = `bensin_${Date.now()}_${filename || 'photo'}.jpg`;
+    const { data, error } = await supabaseClient.storage.from('sim-photos').upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) throw error;
+    const { data: publicUrlData } = supabaseClient.storage.from('sim-photos').getPublicUrl(filePath);
+    return publicUrlData.publicUrl;
+  } catch (e) {
+    console.error('Upload Bensin error:', e);
+    return null;
+  }
+}
+
 /* ---- SUBMIT ---- */
 function validateRequiredFields(){
   const checks = [
     ['p_nama', 'Nama Lengkap'],
     ['p_email', 'Email'],
+    ['i_tglMulai', 'Tanggal Peminjaman'],
+    ['i_waktuMulai', 'Jam Peminjaman'],
+    ['i_tglSelesai', 'Tanggal Pengembalian'],
+    ['i_waktuSelesai', 'Estimasi Jam Pengembalian'],
     ['i_lokasiJemput', 'Lokasi Penjemputan'],
     ['i_lokasiKembali', 'Lokasi Pengembalian'],
     ['km_awal', 'Kilometer Awal'],
@@ -1077,6 +1176,19 @@ function validateRequiredFields(){
       return false;
     }
   }
+
+  // Validasi Wajib Foto SIM
+  if(!simBase64 && (!recallMode || !loadedSimUrl)){
+    alert("Foto SIM wajib diunggah atau diambil menggunakan kamera.");
+    return false;
+  }
+
+  // Validasi Wajib Foto Indikator Bensin
+  if(!bensinBase64 && (!recallMode || !loadedBensinUrl)){
+    alert("Foto Indikator Bensin wajib diunggah atau diambil menggunakan kamera.");
+    return false;
+  }
+
   return true;
 }
 
@@ -1094,6 +1206,11 @@ async function submitForm(){
   let simUrl = null;
   if(simBase64) {
     simUrl = await uploadSimToSupabase(simBase64, document.getElementById('noForm').value);
+  }
+
+  let bensinUrl = null;
+  if(bensinBase64) {
+    bensinUrl = await uploadBensinToSupabase(bensinBase64, document.getElementById('noForm').value);
   }
 
   const payload = collectFormData();
@@ -1142,22 +1259,32 @@ async function submitForm(){
     p3k: payload.serahTerima.kelengkapan.p3k,
     lainnya: payload.serahTerima.kelengkapan.lainnya,
     foto_sim_url: simUrl,
+    foto_bensin_url: bensinUrl,
     approval_status: 'pending'
   };
 
   try{
-    const { data, error } = await supabaseClient.from('submissions').insert([row]).select();
-    if(error) throw error;
+    let insertResult = await supabaseClient.from('submissions').insert([row]).select();
+    if(insertResult.error && (insertResult.error.message.includes('foto_bensin_url') || insertResult.error.code === '42703')) {
+      console.warn("Kolom foto_bensin_url belum dibuat di Supabase, menyimpan tautan ke catatan_kondisi");
+      delete row.foto_bensin_url;
+      if(bensinUrl) {
+        row.catatan_kondisi = (row.catatan_kondisi ? row.catatan_kondisi + ' | ' : '') + `[Foto Indikator Bensin: ${bensinUrl}]`;
+      }
+      insertResult = await supabaseClient.from('submissions').insert([row]).select();
+    }
+    if(insertResult.error) throw insertResult.error;
+
     document.getElementById('statusText').textContent = "Tersimpan ✅ & Email Notifikasi Dikirim!";
     document.getElementById('approvalBadge').style.display='inline-block';
     document.getElementById('approvalBadge').textContent='⏳ Menunggu Approval';
     document.getElementById('metaStatus').textContent='Menunggu Approval';
 
     // Kirim notifikasi email paralel ke Approver 1 & Approver 2 via Mailer (Background)
-    fetch("https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec", {
+    fetch("https://script.google.com/macros/s/AKfycbySIGBdL-9uAMQ-9SDBr18M2YaQ5VdXpao_1gt9Gz1eUxgyq_1AIOMpWcO1kNF4Z1ex/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'submitForm', isParallel: true, isConflict: !!currentConflictInfo, conflictInfo: currentConflictInfo, ...payload })
+      body: JSON.stringify({ action: 'submitForm', isParallel: true, isConflict: !!currentConflictInfo, conflictInfo: currentConflictInfo, ...payload, fotoSimUrl: simUrl, fotoBensinUrl: bensinUrl })
     }).catch(err => console.warn('Email trigger background warning:', err));
 
   }catch(e){
@@ -1182,7 +1309,8 @@ const RECALL_FIELD_IDS = [
   'h_namaDari','h_jabatanDari','h_tglDari','h_namaKe','h_jabatanKe','h_tglKe',
   'k_stnk','k_kunci','k_dongkrak','k_ban','k_segitiga','k_p3k','k_lainnyaChk','k_lainnyaTxt',
   'tglForm',
-  'simCamBtn','simFileBtn'
+  'simCamBtn','simFileBtn',
+  'bensinCamBtn','bensinFileBtn'
 ];
 
 let recallListCache = [];
@@ -1282,7 +1410,9 @@ async function loadSubmissionForEdit(noForm){
       namaKe: data.nama_ke, jabatanKe: data.jabatan_ke, tglKe: data.tgl_ke, ttdKe: data.ttd_ke,
       stnk: data.stnk, kunciCadangan: data.kunci_cadangan, dongkrak: data.dongkrak, banSerep: data.ban_serep,
       segitiga: data.segitiga, p3k: data.p3k, lainnya: data.lainnya,
-      fotoSimUrl: data.foto_sim_url, approvalStatus: data.approval_status, token: data.token
+      fotoSimUrl: data.foto_sim_url,
+      fotoBensinUrl: data.foto_bensin_url || (data.catatan_kondisi && data.catatan_kondisi.match(/\[Foto Indikator Bensin:\s*([^\s\]]+)\]/) ? data.catatan_kondisi.match(/\[Foto Indikator Bensin:\s*([^\s\]]+)\]/)[1] : null),
+      approvalStatus: data.approval_status, token: data.token
     };
     populateFormFromData(d);
     recallMode = true;
@@ -1356,11 +1486,23 @@ function populateFormFromData(d){
   drawSigFromData('sigDari', d.ttdDari);
   drawSigFromData('sigKe', d.ttdKe);
 
+  loadedSimUrl = d.fotoSimUrl || null;
+  loadedBensinUrl = d.fotoBensinUrl || null;
+
   removeSim();
   if(d.fotoSimUrl){
     document.getElementById('simHint').innerHTML =
       'Foto SIM tersimpan: <a href="'+d.fotoSimUrl+'" target="_blank" rel="noopener">lihat foto</a> '
       + '(upload foto baru di sini untuk menggantinya)';
+  }
+
+  removeBensin();
+  if(d.fotoBensinUrl){
+    document.getElementById('bensinHint').innerHTML =
+      'Foto Indikator Bensin tersimpan: <a href="'+d.fotoBensinUrl+'" target="_blank" rel="noopener">lihat foto</a> '
+      + '(upload foto baru di sini untuk menggantinya)';
+    const stEl = document.getElementById('fuelPhotoTextSec3');
+    if(stEl) { stEl.style.color = 'var(--green)'; stEl.innerHTML = '✅ Foto tersimpan: <a href="'+d.fotoBensinUrl+'" target="_blank">lihat foto</a>'; }
   }
 
   // Update Status Banner Header & Badge secara dinamis
@@ -1403,6 +1545,10 @@ async function updateRecallData(){
   let simUrl = null;
   if(simBase64) {
     simUrl = await uploadSimToSupabase(simBase64, recallNoForm);
+  }
+  let bensinUrl = null;
+  if(bensinBase64) {
+    bensinUrl = await uploadBensinToSupabase(bensinBase64, recallNoForm);
   }
   
   const payload = collectFormData();
@@ -1447,13 +1593,23 @@ async function updateRecallData(){
   if(simUrl) {
     updateRow.foto_sim_url = simUrl;
   }
+  if(bensinUrl) {
+    updateRow.foto_bensin_url = bensinUrl;
+  }
 
   try{
-    const { error } = await supabaseClient.from('submissions').update(updateRow).eq('no_form', recallNoForm);
-    if(error) throw error;
+    let updateRes = await supabaseClient.from('submissions').update(updateRow).eq('no_form', recallNoForm);
+    if(updateRes.error && (updateRes.error.message.includes('foto_bensin_url') || updateRes.error.code === '42703')) {
+      delete updateRow.foto_bensin_url;
+      if(bensinUrl) {
+        updateRow.catatan_kondisi = (updateRow.catatan_kondisi ? updateRow.catatan_kondisi + ' | ' : '') + `[Foto Indikator Bensin: ${bensinUrl}]`;
+      }
+      updateRes = await supabaseClient.from('submissions').update(updateRow).eq('no_form', recallNoForm);
+    }
+    if(updateRes.error) throw updateRes.error;
     document.getElementById('statusText').textContent = "Perubahan pada \""+recallNoForm+"\" tersimpan ✅";
   }catch(e){
-    document.getElementById('statusText').textContent = "Gagal menyimpan perubahan ❌";
+    document.getElementById('statusText').textContent = "Gagal menyimpan perubahan ❌: " + e.message;
   }
 }
 

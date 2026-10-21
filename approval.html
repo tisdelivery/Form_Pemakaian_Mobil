@@ -645,7 +645,9 @@ async function openDetailByNoForm(noForm) {
       namaKe: data.nama_ke, jabatanKe: data.jabatan_ke, tglKe: data.tgl_ke,
       stnk: data.stnk, kunciCadangan: data.kunci_cadangan, dongkrak: data.dongkrak, banSerep: data.ban_serep,
       segitiga: data.segitiga, p3k: data.p3k, lainnya: data.lainnya,
-      fotoSimUrl: data.foto_sim_url, approvalStatus: data.approval_status, token: data.token,
+      fotoSimUrl: data.foto_sim_url,
+      fotoBensinUrl: data.foto_bensin_url || (data.catatan_kondisi && data.catatan_kondisi.match(/\[Foto Indikator Bensin:\s*([^\s\]]+)\]/) ? data.catatan_kondisi.match(/\[Foto Indikator Bensin:\s*([^\s\]]+)\]/)[1] : null),
+      approvalStatus: data.approval_status, token: data.token,
       approveNote1: data.approver1_note, approveNote2: data.approver2_note
     };
     renderModalDetail(d);
@@ -679,7 +681,9 @@ async function openDetailByToken(token, roleParam) {
       namaKe: data.nama_ke, jabatanKe: data.jabatan_ke, tglKe: data.tgl_ke,
       stnk: data.stnk, kunciCadangan: data.kunci_cadangan, dongkrak: data.dongkrak, banSerep: data.ban_serep,
       segitiga: data.segitiga, p3k: data.p3k, lainnya: data.lainnya,
-      fotoSimUrl: data.foto_sim_url, approvalStatus: data.approval_status, token: data.token,
+      fotoSimUrl: data.foto_sim_url,
+      fotoBensinUrl: data.foto_bensin_url || (data.catatan_kondisi && data.catatan_kondisi.match(/\[Foto Indikator Bensin:\s*([^\s\]]+)\]/) ? data.catatan_kondisi.match(/\[Foto Indikator Bensin:\s*([^\s\]]+)\]/)[1] : null),
+      approvalStatus: data.approval_status, token: data.token,
       approveNote1: data.approver1_note, approveNote2: data.approver2_note
     };
     renderModalDetail(d, token, roleParam);
@@ -716,12 +720,15 @@ function renderModalDetail(d, tokenOverride, roleOverride) {
       <tr><td>Tgl Form</td><td>${d.tanggalForm}</td></tr>
       <tr><td>Nama Peminjam</td><td>${d.nama} (${d.email})</td></tr>
       <tr><td>Perusahaan / Jabatan</td><td>${d.perusahaan || '-'} / ${d.jabatan || '-'}</td></tr>
-      <tr><td>Tujuan Pemakaian</td><td>${d.tujuan}</td></tr>
-      <tr><td>Jadwal Peminjaman</td><td>${d.tglMulai} s/d ${d.tglSelesai} (${d.durasi} Hari)</td></tr>
-      <tr><td>Lokasi Jemput/Kembali</td><td>${d.lokasiJemput} ➔ ${d.lokasiKembali}</td></tr>
-      <tr><td>Kendaraan</td><td>${d.merk} (${d.nopol}) - ${d.warna}</td></tr>
-      <tr><td>KM Awal / Level Bensin</td><td>${d.kmAwal} KM / Bensin ${d.levelBensin}%</td></tr>
-      ${d.fotoSimUrl ? `<tr><td>Foto SIM</td><td><a href="${d.fotoSimUrl}" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:none;">📷 Lihat Foto SIM ke Drive ↗</a></td></tr>` : ''}
+      <tr><td>Tujuan Pemakaian</td><td>${d.tujuan || '-'}</td></tr>
+      <tr><td>Jadwal Peminjaman</td><td>${d.tglMulai || '-'} s/d ${d.tglSelesai || '-'} (${d.durasi || 0} Hari)</td></tr>
+      <tr><td>Jam Peminjaman</td><td><strong>${d.waktuMulai || '-'}</strong></td></tr>
+      <tr><td>Estimasi Jam Pengembalian</td><td><strong>${d.waktuSelesai || '-'}</strong></td></tr>
+      <tr><td>Lokasi Jemput/Kembali</td><td>${d.lokasiJemput || '-'} ➔ ${d.lokasiKembali || '-'}</td></tr>
+      <tr><td>Kendaraan</td><td>${d.merk || '-'} (${d.nopol || '-'}) - ${d.warna || '-'}</td></tr>
+      <tr><td>KM Awal / Level Bensin</td><td>${d.kmAwal || '-'} KM / Bensin ${d.levelBensin || '-'}%</td></tr>
+      ${d.fotoSimUrl ? `<tr><td>Foto SIM</td><td><a href="${d.fotoSimUrl}" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:none;">📄 Lihat Foto SIM ↗</a></td></tr>` : ''}
+      ${d.fotoBensinUrl ? `<tr><td>Foto Indikator Bensin</td><td><a href="${d.fotoBensinUrl}" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:none;">⛽ Lihat Foto Indikator Bensin ↗</a></td></tr>` : ''}
       ${d.approveNote1 ? `<tr><td>Catatan Approver 1</td><td><strong style="color:var(--ink);">${d.approveNote1}</strong></td></tr>` : ''}
       ${d.approveNote2 ? `<tr><td>Catatan Approver 2</td><td><strong style="color:var(--ink);">${d.approveNote2}</strong></td></tr>` : ''}
     </table>
@@ -843,7 +850,7 @@ async function submitApprovalAction(token, roleNum, decision) {
 
     alert(`Berhasil! Keputusan Anda (${decision === 'approve' ? 'Disetujui' : 'Ditolak'}) telah dicatat.`);
 
-    fetch("https://script.google.com/macros/s/AKfycbx45OeyFD61yF2v1tfVHgVFttiRjznSvSd5NLizZ8uR1Pb1xdOrDvOQFsT62xWKzOuNzQ/exec", {
+    fetch("https://script.google.com/macros/s/AKfycbySIGBdL-9uAMQ-9SDBr18M2YaQ5VdXpao_1gt9Gz1eUxgyq_1AIOMpWcO1kNF4Z1ex/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'submitApproval', token: token, role: roleNum, decision: decision, note: note, newStatus: newStatus })

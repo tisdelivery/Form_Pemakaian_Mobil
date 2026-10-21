@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS public.submissions (
   p3k BOOLEAN DEFAULT false,
   lainnya TEXT,
   foto_sim_url TEXT,
+  foto_bensin_url TEXT,
   approval_status TEXT DEFAULT 'pending', -- 'pending', 'approved1', 'approved2', 'rejected'
   token TEXT DEFAULT gen_random_uuid()::text,
   approver1_note TEXT,
@@ -151,3 +152,7 @@ CREATE POLICY "Public Users Access" ON public.users FOR ALL USING (true) WITH CH
 CREATE POLICY "Public Vehicles Access" ON public.vehicles FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Submissions Access" ON public.submissions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Returns Access" ON public.returns FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. MIGRASI TAMBAHAN (Jalankan ini jika database sudah ada sebelumnya)
+ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS foto_bensin_url TEXT;
+ALTER TABLE public.returns ADD COLUMN IF NOT EXISTS foto_bensin_kembali_url TEXT;
