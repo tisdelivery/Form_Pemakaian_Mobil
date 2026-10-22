@@ -1280,11 +1280,13 @@ async function submitForm(){
     document.getElementById('approvalBadge').textContent='⏳ Menunggu Approval';
     document.getElementById('metaStatus').textContent='Menunggu Approval';
 
+    const createdToken = (insertResult.data && insertResult.data[0] && insertResult.data[0].token) ? insertResult.data[0].token : null;
+
     // Kirim notifikasi email paralel ke Approver 1 & Approver 2 via Mailer (Background)
     fetch("https://script.google.com/macros/s/AKfycbzpYXAtbE_b0sKRJIaqwQihpDQvuCgD7V9GKg_9IKxbnBa8LGfYrAPPVo5Dk0Nhhu_G/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'submitForm', isParallel: true, isConflict: !!currentConflictInfo, conflictInfo: currentConflictInfo, ...payload, fotoSimUrl: simUrl, fotoBensinUrl: bensinUrl })
+      body: JSON.stringify({ action: 'submitForm', token: createdToken, isParallel: true, isConflict: !!currentConflictInfo, conflictInfo: currentConflictInfo, ...payload, fotoSimUrl: simUrl, fotoBensinUrl: bensinUrl })
     }).catch(err => console.warn('Email trigger background warning:', err));
 
   }catch(e){

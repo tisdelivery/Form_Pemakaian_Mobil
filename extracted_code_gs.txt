@@ -64,6 +64,7 @@ const APPROVER_1_EMAIL = "sanny.anshory@integrasolution.id";   // Sanny Anshory
 const APPROVER_1_NAME  = "Sanny Anshory";                     // Approver 1
 const APPROVER_2_EMAIL = "gita.lenggogeni@integrasolution.id";  // Gita Lenggogeni
 const APPROVER_2_NAME  = "Gita Lenggogeni";                   // Approver 2
+const SUPER_ADMIN_EMAIL = "devry.handayani@integrasolution.id"; // Super Admin (Devry Handayani)
 
 // URL halaman approval.html setelah diupload ke GitHub Pages
 const APPROVAL_PAGE_URL = "https://tisdelivery.github.io/Form_Pemakaian_Mobil/approval.html";
@@ -202,15 +203,12 @@ function handleSubmitForm(body) {
   const s  = body.serahTerima || {};
   const kl = s.kelengkapan    || {};
 
-  // Generate token unik untuk approval link
-  const token = Utilities.getUuid();
+  // Gunakan token dari client (Supabase) jika ada, jika tidak generate baru
+  const token = body.token || Utilities.getUuid();
 
-  // Upload foto SIM ke Google Drive jika ada
-  let fotoSimUrl = '';
-  let fotoSimFailed = false; // BUG FIX: dulu kalau upload ke Drive gagal,
-                              // ini tidak pernah diberitahukan ke frontend —
-                              // form tetap tersimpan tapi foto SIM hilang
-                              // tanpa peringatan apa pun ke admin.
+  // Upload foto SIM ke Google Drive jika ada base64
+  let fotoSimUrl = body.fotoSimUrl || '';
+  let fotoSimFailed = false;
   if (body.fotoSim && body.fotoSim.startsWith('data:image')) {
     try {
       fotoSimUrl = uploadImageToDrive(body.fotoSim, `SIM_${body.noForm}_${Date.now()}.jpg`);
@@ -220,42 +218,49 @@ function handleSubmitForm(body) {
     }
   }
 
-  // Simpan ke sheet Submissions
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SUBMISSIONS);
-  sheet.appendRow([
-    new Date(), body.noForm, body.tanggalForm,
-    p.nama, p.perusahaan, p.jabatan, p.alamat, p.ktp, p.telepon, p.email,
-    i.tujuan, i.tglMulai, i.waktuMulai, i.tglSelesai, i.waktuSelesai,
-    i.durasi, i.lokasiJemput, i.lokasiKembali, i.denganDriver,
-    k.jenis, k.merk, k.nopol, k.warna, k.tahun, k.vin, k.mesin,
-    k.kmAwal, k.levelBensin, k.catatanKondisi,
-    s.namaDari, s.jabatanDari, s.tglDari,
-    s.namaKe, s.jabatanKe, s.tglKe,
-    kl.stnk, kl.kunciCadangan, kl.dongkrak, kl.banSerep, kl.segitiga, kl.p3k, kl.lainnya,
-    fotoSimUrl, 'pending', token
-  ]);
+  // Simpan ke Google Sheet jika spreadsheet aktif tersedia (opsional / fallback)
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) {
+      const sheet = ss.getSheetByName(SHEET_SUBMISSIONS);
+      if (sheet) {
+        sheet.appendRow([
+          new Date(), body.noForm, body.tanggalForm,
+          p.nama, p.perusahaan, p.jabatan, p.alamat, p.ktp, p.telepon, p.email,
+          i.tujuan, i.tglMulai, i.waktuMulai, i.tglSelesai, i.waktuSelesai,
+          i.durasi, i.lokasiJemput, i.lokasiKembali, i.denganDriver,
+          k.jenis, k.merk, k.nopol, k.warna, k.tahun, k.vin, k.mesin,
+          k.kmAwal, k.levelBensin, k.catatanKondisi,
+          s.namaDari, s.jabatanDari, s.tglDari,
+          s.namaKe, s.jabatanKe, s.tglKe,
+          kl.stnk, kl.kunciCadangan, kl.dongkrak, kl.banSerep, kl.segitiga, kl.p3k, kl.lainnya,
+          fotoSimUrl, 'pending', token
+        ]);
+      }
+      const apSheet = ss.getSheetByName(SHEET_APPROVALS);
+      if (apSheet) {
+        apSheet.appendRow([token, body.noForm, 'pending', '', '', '', '', '', '']);
+      }
+    }
+  } catch(ssErr) {
+    Logger.log('Warning saat simpan ke spreadsheet (bisa diabaikan jika pakai Supabase): ' + ssErr);
+  }
 
-  // Simpan ke sheet Approvals
-  const apSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_APPROVALS);
-  apSheet.appendRow([token, body.noForm, 'pending', '', '', '', '', '', '']);
-
-  // Kirim email ke Approver 1
-  // UPDATE: dibungkus try/catch sendiri — data form SUDAH tersimpan di
-  // baris atas, jadi kalau pengiriman email gagal (kuota MailApp habis,
-  // dll), jangan sampai bikin seluruh response error padahal datanya aman.
+  // Kirim email notifikasi
   let emailFailed = false;
   try {
-    sendApprovalEmail(1, token, body, fotoSimUrl);
+    if (body.isParallel) {
+      // Notifikasi paralel ke Approver 1 & Approver 2
+      sendApprovalEmail(1, token, body, fotoSimUrl);
+      sendApprovalEmail(2, token, body, fotoSimUrl);
+    } else {
+      sendApprovalEmail(1, token, body, fotoSimUrl);
+    }
   } catch(err) {
-    Logger.log('Gagal kirim email approval tahap 1: ' + err);
+    Logger.log('Gagal kirim email approval: ' + err);
     emailFailed = true;
   }
 
-  // BUG FIX: sebelumnya fotoSimUrl TIDAK ikut dikembalikan ke frontend —
-  // frontend cuma tahu "gagal" (fotoSimFailed) tapi tidak pernah punya bukti
-  // eksplisit bahwa foto BERHASIL diupload. Sekarang fotoSimUrl selalu
-  // disertakan (string kosong kalau memang tidak ada foto dikirim), supaya
-  // frontend bisa mengonfirmasi status upload foto secara pasti.
   return { status: 'ok', token: token, fotoSimFailed: fotoSimFailed, fotoSimUrl: fotoSimUrl, emailFailed: emailFailed };
 }
 
@@ -397,77 +402,73 @@ function handleSubmitApproval(body) {
 
   if (!token) return { error: 'Token tidak valid' };
 
-  // Update sheet Approvals
-  const apSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_APPROVALS);
-  const apData  = apSheet.getDataRange().getValues();
-  let apRowIdx  = -1;
-  for (let r = 1; r < apData.length; r++) {
-    if (String(apData[r][0]).trim() === token) { apRowIdx = r + 1; break; }
+  let newStatus = '';
+  if (role === 1) {
+    newStatus = decision === 'approve' ? 'approved1' : 'rejected';
+  } else if (role === 2) {
+    newStatus = decision === 'approve' ? 'approved2' : 'rejected';
   }
-  if (apRowIdx < 0) return { error: 'Token tidak ditemukan di data approval' };
 
   const now = new Date().toLocaleString('id-ID');
-  let newStatus = '';
 
-  if (role === 1) {
-    if (decision === 'approve') {
-      apSheet.getRange(apRowIdx, 4).setValue('approved');
-      apSheet.getRange(apRowIdx, 5).setValue(now);
-      apSheet.getRange(apRowIdx, 6).setValue(note);
-      newStatus = 'approved1';
-    } else {
-      apSheet.getRange(apRowIdx, 4).setValue('rejected');
-      apSheet.getRange(apRowIdx, 5).setValue(now);
-      apSheet.getRange(apRowIdx, 6).setValue(note);
-      newStatus = 'rejected';
+  // Update ke sheet Approvals & Submissions jika sheet tersedia
+  let formRow = null;
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) {
+      const apSheet = ss.getSheetByName(SHEET_APPROVALS);
+      if (apSheet) {
+        const apData  = apSheet.getDataRange().getValues();
+        let apRowIdx  = -1;
+        for (let r = 1; r < apData.length; r++) {
+          if (String(apData[r][0]).trim() === token) { apRowIdx = r + 1; break; }
+        }
+        if (apRowIdx > 0) {
+          if (role === 1) {
+            apSheet.getRange(apRowIdx, 4).setValue(decision === 'approve' ? 'approved' : 'rejected');
+            apSheet.getRange(apRowIdx, 5).setValue(now);
+            apSheet.getRange(apRowIdx, 6).setValue(note);
+          } else if (role === 2) {
+            apSheet.getRange(apRowIdx, 7).setValue(decision === 'approve' ? 'approved' : 'rejected');
+            apSheet.getRange(apRowIdx, 8).setValue(now);
+            apSheet.getRange(apRowIdx, 9).setValue(note);
+          }
+          apSheet.getRange(apRowIdx, 3).setValue(newStatus);
+        }
+      }
+      updateSubmissionStatus(token, newStatus);
+      formRow = getSubmissionByToken(token);
     }
-  } else if (role === 2) {
-    if (decision === 'approve') {
-      apSheet.getRange(apRowIdx, 7).setValue('approved');
-      apSheet.getRange(apRowIdx, 8).setValue(now);
-      apSheet.getRange(apRowIdx, 9).setValue(note);
-      newStatus = 'approved2';
-    } else {
-      apSheet.getRange(apRowIdx, 7).setValue('rejected');
-      apSheet.getRange(apRowIdx, 8).setValue(now);
-      apSheet.getRange(apRowIdx, 9).setValue(note);
-      newStatus = 'rejected';
-    }
+  } catch(ssErr) {
+    Logger.log('Warning sheet update: ' + ssErr);
   }
 
-  // Update status di Approvals row
-  apSheet.getRange(apRowIdx, 3).setValue(newStatus);
-
-  // Update status di Submissions
-  updateSubmissionStatus(token, newStatus);
-
-  // Ambil data form untuk email
-  const formRow = getSubmissionByToken(token);
-
   // Kirim email sesuai kondisi
-  // UPDATE: dibungkus try/catch — status approval SUDAH tersimpan di baris
-  // atas, jadi kalau formRow ternyata null (data tidak ketemu) atau
-  // pengiriman email gagal, jangan sampai keputusan approve/reject yang
-  // sudah tercatat malah dilaporkan "gagal" ke approver.
   let emailFailed = false;
   try {
-    if (!formRow) throw new Error('Data submission untuk token ini tidak ditemukan saat kirim email.');
+    const borrowerEmail = (formRow && formRow[9]) ? formRow[9] : (body.peminjamEmail || '');
+    const borrowerNama  = (formRow && formRow[3]) ? formRow[3] : (body.peminjamNama || 'Peminjam');
+    const noForm        = (formRow && formRow[1]) ? formRow[1] : (body.noForm || '-');
+
     if (newStatus === 'approved1') {
-      // Kirim ke Approver 2
-      sendApprovalEmail(2, token, { noForm: formRow[1], pengguna: {
-        nama: formRow[3], perusahaan: formRow[4], jabatan: formRow[5], email: formRow[9], telepon: formRow[8]
-      }, pemakaian: {
-        tujuan: formRow[10], tglMulai: formRow[11], tglSelesai: formRow[13], durasi: formRow[15],
-        lokasiJemput: formRow[16], denganDriver: formRow[18]
-      }, kendaraan: {
-        jenis: formRow[19], merk: formRow[20], nopol: formRow[21], warna: formRow[22], tahun: formRow[23]
-      }}, formRow[42]);
-    } else if (newStatus === 'approved2') {
-      // Kirim email disetujui ke peminjam
-      sendResultEmailToBorrower(formRow, 'approved', note);
-    } else if (newStatus === 'rejected') {
-      // Kirim email ditolak ke peminjam
-      sendResultEmailToBorrower(formRow, 'rejected', note);
+      // Kirim ke Approver 2 jika formRow ada atau data tersedia
+      if (formRow) {
+        sendApprovalEmail(2, token, { noForm: formRow[1], pengguna: {
+          nama: formRow[3], perusahaan: formRow[4], jabatan: formRow[5], email: formRow[9], telepon: formRow[8]
+        }, pemakaian: {
+          tujuan: formRow[10], tglMulai: formRow[11], tglSelesai: formRow[13], durasi: formRow[15],
+          lokasiJemput: formRow[16], denganDriver: formRow[18]
+        }, kendaraan: {
+          jenis: formRow[19], merk: formRow[20], nopol: formRow[21], warna: formRow[22], tahun: formRow[23]
+        }}, formRow[42]);
+      } else {
+        sendApprovalEmail(2, token, { noForm: noForm, pengguna: {
+          nama: borrowerNama, email: borrowerEmail
+        }}, '');
+      }
+    } else if (newStatus === 'approved2' || newStatus === 'rejected') {
+      // Kirim email hasil ke peminjam
+      sendResultEmailToBorrower({ 1: noForm, 3: borrowerNama, 9: borrowerEmail }, newStatus === 'approved2' ? 'approved' : 'rejected', note);
     }
   } catch(err) {
     Logger.log('Gagal kirim email approval (status=' + newStatus + '): ' + err);
@@ -593,8 +594,8 @@ function sendApprovalEmail(role, token, body, fotoSimUrl) {
       <tr style="background:#f5f5f5;"><td style="padding:7px 10px;font-weight:600;">Jabatan</td><td style="padding:7px 10px;">${p.jabatan||'-'}</td></tr>
       <tr><td style="padding:7px 10px;font-weight:600;">Email Peminjam</td><td style="padding:7px 10px;">${p.email||'-'}</td></tr>
       <tr style="background:#f5f5f5;"><td style="padding:7px 10px;font-weight:600;">Tujuan</td><td style="padding:7px 10px;">${i.tujuan||'-'}</td></tr>
-      <tr><td style="padding:7px 10px;font-weight:600;">Tgl Mulai</td><td style="padding:7px 10px;">${i.tglMulai||'-'}</td></tr>
-      <tr style="background:#f5f5f5;"><td style="padding:7px 10px;font-weight:600;">Tgl Selesai</td><td style="padding:7px 10px;">${i.tglSelesai||'-'}</td></tr>
+      <tr><td style="padding:7px 10px;font-weight:600;">Tgl Mulai</td><td style="padding:7px 10px;">${i.tglMulai||'-'} ${i.waktuMulai ? '('+i.waktuMulai+')' : ''}</td></tr>
+      <tr style="background:#f5f5f5;"><td style="padding:7px 10px;font-weight:600;">Tgl Selesai</td><td style="padding:7px 10px;">${i.tglSelesai||'-'} ${i.waktuSelesai ? '('+i.waktuSelesai+')' : ''}</td></tr>
       <tr><td style="padding:7px 10px;font-weight:600;">Durasi</td><td style="padding:7px 10px;">${i.durasi||'-'} hari</td></tr>
       <tr style="background:#f5f5f5;"><td style="padding:7px 10px;font-weight:600;">Kendaraan</td><td style="padding:7px 10px;">${k.merk||'-'} (${k.nopol||'-'})</td></tr>
       <tr><td style="padding:7px 10px;font-weight:600;">Dengan Driver</td><td style="padding:7px 10px;">${i.denganDriver||'-'}</td></tr>
@@ -619,11 +620,22 @@ function sendApprovalEmail(role, token, body, fotoSimUrl) {
   </div>
 </div>`;
 
-  MailApp.sendEmail({
-    to: toEmail,
-    subject: `[Approval Tahap ${role}] Peminjaman Mobil ${noForm} — ${p.nama||''}`,
-    htmlBody: html
-  });
+  try {
+    GmailApp.sendEmail(toEmail, `[Approval Tahap ${role}] Peminjaman Mobil ${noForm} — ${p.nama||''}`, '', {
+      htmlBody: html,
+      name: "Admin Project TIS",
+      cc: SUPER_ADMIN_EMAIL
+    });
+  } catch(e) {
+    // Fallback ke MailApp jika GmailApp ada restriksi
+    MailApp.sendEmail({
+      to: toEmail,
+      cc: SUPER_ADMIN_EMAIL,
+      name: "Admin Project TIS",
+      subject: `[Approval Tahap ${role}] Peminjaman Mobil ${noForm} — ${p.nama||''}`,
+      htmlBody: html
+    });
+  }
 }
 
 /* ================================================================
@@ -658,11 +670,21 @@ function sendResultEmailToBorrower(row, decision, approverNote) {
   </div>
 </div>`;
 
-  MailApp.sendEmail({
-    to: peminjamEmail,
-    subject: `[${isApproved?'DISETUJUI':'DITOLAK'}] Peminjaman Mobil ${noForm}`,
-    htmlBody: html
-  });
+  try {
+    GmailApp.sendEmail(peminjamEmail, `[${isApproved?'DISETUJUI':'DITOLAK'}] Peminjaman Mobil ${noForm}`, '', {
+      htmlBody: html,
+      name: "Admin Project TIS",
+      cc: SUPER_ADMIN_EMAIL
+    });
+  } catch(e) {
+    MailApp.sendEmail({
+      to: peminjamEmail,
+      cc: SUPER_ADMIN_EMAIL,
+      name: "Admin Project TIS",
+      subject: `[${isApproved?'DISETUJUI':'DITOLAK'}] Peminjaman Mobil ${noForm}`,
+      htmlBody: html
+    });
+  }
 }
 
 /* ================================================================
