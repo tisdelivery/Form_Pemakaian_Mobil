@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Webhook</title>
+</head>
+<body>
+  <h1>Test Webhook</h1>
+  <button id="testBtn">Test Fetch</button>
+  <pre id="output"></pre>
+  <script>
+    document.getElementById('testBtn').addEventListener('click', async () => {
+      const url = "https://script.google.com/macros/s/AKfycbzpYXAtbE_b0sKRJIaqwQihpDQvuCgD7V9GKg_9IKxbnBa8LGfYrAPPVo5Dk0Nhhu_G/exec";
+      const output = document.getElementById('output');
+      output.textContent = "Sending...";
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'submitForm', p_nama: 'Test Browser' })
+        });
+        const text = await res.text();
+        output.textContent = "Status: " + res.status + "\n" + text;
+      } catch (err) {
+        output.textContent = "Error: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>

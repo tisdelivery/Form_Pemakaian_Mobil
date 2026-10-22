@@ -1281,7 +1281,7 @@ async function submitForm(){
     document.getElementById('metaStatus').textContent='Menunggu Approval';
 
     // Kirim notifikasi email paralel ke Approver 1 & Approver 2 via Mailer (Background)
-    fetch("https://script.google.com/macros/s/AKfycbySIGBdL-9uAMQ-9SDBr18M2YaQ5VdXpao_1gt9Gz1eUxgyq_1AIOMpWcO1kNF4Z1ex/exec", {
+    fetch("https://script.google.com/macros/s/AKfycbzpYXAtbE_b0sKRJIaqwQihpDQvuCgD7V9GKg_9IKxbnBa8LGfYrAPPVo5Dk0Nhhu_G/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'submitForm', isParallel: true, isConflict: !!currentConflictInfo, conflictInfo: currentConflictInfo, ...payload, fotoSimUrl: simUrl, fotoBensinUrl: bensinUrl })
