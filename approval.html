@@ -856,6 +856,9 @@ async function submitApprovalAction(token, roleNum, decision) {
 
     alert(`Berhasil! Keputusan Anda (${decision === 'approve' ? 'Disetujui' : 'Ditolak'}) telah dicatat.`);
 
+    const note1 = roleNum === 1 ? note : (currentSub.approver1_note || '');
+    const note2 = roleNum === 2 ? note : (currentSub.approver2_note || '');
+
     fetch("https://script.google.com/macros/s/AKfycbzpYXAtbE_b0sKRJIaqwQihpDQvuCgD7V9GKg_9IKxbnBa8LGfYrAPPVo5Dk0Nhhu_G/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -865,11 +868,13 @@ async function submitApprovalAction(token, roleNum, decision) {
         role: roleNum,
         decision: decision,
         note: note,
+        note1: note1,
+        note2: note2,
         newStatus: newStatus,
         noForm: currentSub.no_form || '',
         peminjamNama: currentSub.nama || '',
         peminjamEmail: currentSub.email || '',
-        submission: currentSub
+        submission: { ...currentSub, ...updateRow }
       })
     }).catch(err => console.warn('Email background trigger warning:', err));
 

@@ -524,8 +524,16 @@ function handleSubmitApproval(body) {
         }, sub.foto_sim_url || '');
       }
     } else if (newStatus === 'approved2' || newStatus === 'approved' || newStatus === 'rejected') {
-      // Kirim email hasil ke peminjam
-      sendResultEmailToBorrower({ 1: noForm, 3: borrowerNama, 9: borrowerEmail }, (newStatus === 'approved2' || newStatus === 'approved') ? 'approved' : 'rejected', note);
+      const note1 = body.note1 || (body.submission && body.submission.approver1_note) || (formRow ? formRow[5] : '') || '';
+      const note2 = body.note2 || (body.submission && body.submission.approver2_note) || (formRow ? formRow[8] : '') || '';
+      // Kirim email hasil ke peminjam (mencantumkan catatan Approver 1 & Approver 2)
+      sendResultEmailToBorrower(
+        { 1: noForm, 3: borrowerNama, 9: borrowerEmail },
+        (newStatus === 'approved2' || newStatus === 'approved') ? 'approved' : 'rejected',
+        note1,
+        note2,
+        body.submission || {}
+      );
     }
   } catch(err) {
     Logger.log('Gagal kirim email approval (status=' + newStatus + '): ' + err);
@@ -704,31 +712,74 @@ function sendApprovalEmail(role, token, body, fotoSimUrl) {
 }
 
 /* ================================================================
-   EMAIL: hasil approval ke peminjam
+   EMAIL: hasil approval ke peminjam (Catatan Approver 1 & Approver 2)
    ================================================================ */
-function sendResultEmailToBorrower(row, decision, approverNote) {
-  const peminjamEmail = row[9];
-  if (!peminjamEmail) return;
+function sendResultEmailToBorrower(row, decision, note1, note2, submissionData) {
+  row = row || {};
+  const peminjamEmail = row[9] || row.email || row.peminjamEmail;
+  if (!peminjamEmail) {
+    Logger.log('sendResultEmailToBorrower: Email peminjam tidak ditemukan, pengiriman dilewati.');
+    return;
+  }
 
-  const noForm = row[1];
-  const nama   = row[3];
+  const noForm = row[1] || row.noForm || '-';
+  const nama   = row[3] || row.nama || row.peminjamNama || 'Peminjam';
   const isApproved = decision === 'approved';
+  const sub = submissionData || {};
+
+  const tujuan = sub.tujuan || row[10] || '-';
+  const tglMulai = sub.tgl_mulai || sub.tglMulai || row[11] || '-';
+  const waktuMulai = sub.waktu_mulai || sub.waktuMulai || row[12] || '';
+  const tglSelesai = sub.tgl_selesai || sub.tglSelesai || row[13] || '-';
+  const waktuSelesai = sub.waktu_selesai || sub.waktuSelesai || row[14] || '';
+  const kendaraan = sub.merk ? `${sub.merk} (${sub.nopol || ''})` : (row[20] ? `${row[20]} (${row[21]||''})` : '-');
 
   const html = `
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
-  <div style="background:${isApproved?'#1e7a3c':'#8a1116'};color:#fff;padding:20px 24px;">
-    <h2 style="margin:0;font-size:18px;">${isApproved?'✅ Peminjaman Disetujui':'❌ Peminjaman Ditolak'}</h2>
-    <div style="font-size:12px;opacity:.85;margin-top:4px;">PT Integra Solusi Mandiri</div>
+<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+  <div style="background:${isApproved ? '#1e7a3c' : '#8a1116'};color:#fff;padding:22px 24px;">
+    <h2 style="margin:0;font-size:18px;">${isApproved ? '✅ Peminjaman Mobil Disetujui Penuh' : '❌ Peminjaman Mobil Ditolak'}</h2>
+    <div style="font-size:12px;opacity:.9;margin-top:4px;">PT Integra Solusi Mandiri &mdash; Status Hasil Approval</div>
   </div>
-  <div style="padding:20px 24px;">
+  <div style="padding:22px 24px;color:#333;line-height:1.5;">
     <p>Yth. <b>${nama}</b>,</p>
-    <p>Permintaan peminjaman mobil Anda dengan No. Form <b>${noForm}</b> telah
-    <b>${isApproved?'DISETUJUI oleh semua approver':'DITOLAK'}</b>.</p>
-    ${approverNote ? `<div style="background:#f8f9fa;border-left:4px solid ${isApproved?'#1e7a3c':'#8a1116'};padding:10px 14px;margin:12px 0;font-size:13px;">
-      <b>Catatan Approver:</b><br>${approverNote}
-    </div>` : ''}
-    ${isApproved ? `<p style="color:#1e7a3c;font-weight:600;">Anda dapat mengambil kendaraan sesuai jadwal yang telah disetujui. Jangan lupa membawa form ini yang sudah tercetak.</p>` 
-    : `<p style="color:#8a1116;">Silakan hubungi tim GA/Admin untuk informasi lebih lanjut.</p>`}
+    <p>Permintaan peminjaman mobil Anda dengan No. Form <b>${noForm}</b> telah 
+    <b>${isApproved ? 'DISETUJUI oleh Approver 1 dan Approver 2' : 'DITOLAK'}</b>.</p>
+
+    <!-- RINGKASAN PEMINJAMAN -->
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin:16px 0;background:#fafafa;border:1px solid #eee;border-radius:6px;overflow:hidden;">
+      <tr style="background:#f1f3f5;"><td style="padding:8px 12px;font-weight:600;width:38%;">No. Form</td><td style="padding:8px 12px;"><b>${noForm}</b></td></tr>
+      <tr><td style="padding:8px 12px;font-weight:600;">Kendaraan</td><td style="padding:8px 12px;">${kendaraan}</td></tr>
+      <tr style="background:#f9f9f9;"><td style="padding:8px 12px;font-weight:600;">Jadwal Peminjaman</td><td style="padding:8px 12px;">${tglMulai} ${waktuMulai ? '('+waktuMulai+')' : ''}</td></tr>
+      <tr><td style="padding:8px 12px;font-weight:600;">Estimasi Pengembalian</td><td style="padding:8px 12px;">${tglSelesai} ${waktuSelesai ? '('+waktuSelesai+')' : ''}</td></tr>
+      <tr style="background:#f9f9f9;"><td style="padding:8px 12px;font-weight:600;">Tujuan</td><td style="padding:8px 12px;">${tujuan}</td></tr>
+    </table>
+
+    <!-- CATATAN DARI MASING-MASING APPROVER -->
+    <div style="margin:20px 0;">
+      <h3 style="font-size:14px;color:#1f2226;margin:0 0 10px 0;border-bottom:1px solid #eee;padding-bottom:6px;">📋 Catatan dari Approver:</h3>
+      
+      <div style="background:#f8fdf9;border-left:4px solid #1e7a3c;border:1px solid #d4edda;border-left-width:4px;padding:12px 14px;margin-bottom:12px;border-radius:4px;">
+        <div style="font-size:12px;font-weight:bold;color:#1e7a3c;margin-bottom:4px;">Catatan Approver 1 &mdash; ${APPROVER_1_NAME}:</div>
+        <div style="font-size:13px;color:#222;font-style:italic;">"${note1 ? note1 : 'Tidak ada catatan tambahan'}"</div>
+      </div>
+
+      <div style="background:#fdfaf6;border-left:4px solid #f07d1a;border:1px solid #ffe8d6;border-left-width:4px;padding:12px 14px;margin-bottom:12px;border-radius:4px;">
+        <div style="font-size:12px;font-weight:bold;color:#c05600;margin-bottom:4px;">Catatan Approver 2 &mdash; ${APPROVER_2_NAME}:</div>
+        <div style="font-size:13px;color:#222;font-style:italic;">"${note2 ? note2 : 'Tidak ada catatan tambahan'}"</div>
+      </div>
+    </div>
+
+    ${isApproved 
+      ? `<div style="background:#eef7ee;border:1px solid #c3e6cb;color:#1e7a3c;padding:12px 16px;border-radius:6px;font-size:12.5px;line-height:1.5;">
+          <b>Informasi Penting:</b><br>
+          • Anda dapat mengambil kendaraan sesuai jadwal yang disetujui.<br>
+          • Mohon patuhi seluruh instruksi & catatan dari approver di atas.<br>
+          • Jangan lupa memeriksa fisik kendaraan bersama pihak penyerah dan mengunggah <b>Foto Indikator Bensin</b> saat form pengembalian nanti.
+        </div>`
+      : `<div style="background:#fdf2f2;border:1px solid #f5c6cb;color:#721c24;padding:12px 16px;border-radius:6px;font-size:12.5px;line-height:1.5;">
+          Pengajuan peminjaman mobil ini tidak dapat disetujui. Silakan berkoordinasi dengan atasan atau tim GA terkait alasan pada catatan di atas.
+        </div>`
+    }
   </div>
   <div style="background:#f5f5f5;padding:12px 24px;font-size:11px;color:#888;text-align:center;">
     PT Integra Solusi Mandiri &mdash; Sistem Peminjaman Kendaraan
@@ -736,7 +787,7 @@ function sendResultEmailToBorrower(row, decision, approverNote) {
 </div>`;
 
   try {
-    GmailApp.sendEmail(peminjamEmail, `[${isApproved?'DISETUJUI':'DITOLAK'}] Peminjaman Mobil ${noForm}`, '', {
+    GmailApp.sendEmail(peminjamEmail, `[${isApproved ? 'DISETUJUI' : 'DITOLAK'}] Peminjaman Mobil ${noForm} — PT Integra Solusi Mandiri`, '', {
       htmlBody: html,
       name: "Admin Project TIS",
       cc: SUPER_ADMIN_EMAIL
@@ -746,7 +797,7 @@ function sendResultEmailToBorrower(row, decision, approverNote) {
       to: peminjamEmail,
       cc: SUPER_ADMIN_EMAIL,
       name: "Admin Project TIS",
-      subject: `[${isApproved?'DISETUJUI':'DITOLAK'}] Peminjaman Mobil ${noForm}`,
+      subject: `[${isApproved ? 'DISETUJUI' : 'DITOLAK'}] Peminjaman Mobil ${noForm} — PT Integra Solusi Mandiri`,
       htmlBody: html
     });
   }
