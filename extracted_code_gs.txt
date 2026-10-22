@@ -72,6 +72,36 @@ const APPROVAL_PAGE_URL = "https://tisdelivery.github.io/Form_Pemakaian_Mobil/ap
 // Nama folder di Google Drive tempat menyimpan foto SIM
 const DRIVE_FOLDER_NAME = "Foto SIM Peminjaman Mobil";
 
+// ID Google Spreadsheet (Opsional):
+// - Jika Apps Script dibuka dari menu Ekstensi > Apps Script di Spreadsheet, biarkan kosong ("").
+// - Jika Apps Script dibuat sebagai Standalone di script.google.com dan ingin data dicatat ke Sheet,
+//   isi dengan ID Google Spreadsheet (contoh: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms").
+// - Jika tidak menggunakan Spreadsheet (karena sudah pakai Supabase), biarkan kosong ("").
+const SPREADSHEET_ID = "";
+
+/* ================================================================
+   HELPER: Akses Spreadsheet Aman (Mendukung Standalone & Bound Script)
+   ================================================================ */
+function getSpreadsheet() {
+  try {
+    if (typeof SPREADSHEET_ID === 'string' && SPREADSHEET_ID.trim() !== '') {
+      return SpreadsheetApp.openById(SPREADSHEET_ID.trim());
+    }
+    return SpreadsheetApp.getActiveSpreadsheet();
+  } catch(e) {
+    Logger.log('getSpreadsheet info: ' + e.message);
+    return null;
+  }
+}
+
+function getTz() {
+  try {
+    const ss = getSpreadsheet();
+    if (ss) return ss.getSpreadsheetTimeZone();
+  } catch(e) {}
+  return "Asia/Jakarta";
+}
+
 /* ================================================================
    NAMA SHEET
    ================================================================ */
@@ -169,7 +199,7 @@ function fmtDate(v) {
   if (!v) return '';
   const d = new Date(v);
   if (isNaN(d)) return String(v);
-  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  const tz = getTz();
   return Utilities.formatDate(d, tz, "yyyy-MM-dd");
 }
 
@@ -189,7 +219,7 @@ function fmtTime(v) {
   if (typeof v === 'string' && /^\d{1,2}:\d{2}/.test(v)) return v.slice(0, 5);
   const d = new Date(v);
   if (isNaN(d)) return String(v);
-  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  const tz = getTz();
   return Utilities.formatDate(d, tz, "HH:mm");
 }
 
@@ -220,7 +250,7 @@ function handleSubmitForm(body) {
 
   // Simpan ke Google Sheet jika spreadsheet aktif tersedia (opsional / fallback)
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSpreadsheet();
     if (ss) {
       const sheet = ss.getSheetByName(SHEET_SUBMISSIONS);
       if (sheet) {
@@ -277,7 +307,12 @@ function handleUpdateSubmission(body) {
   const noForm = String(body.noForm || '').trim();
   if (!noForm) return { error: 'No. Form kosong.' };
 
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SUBMISSIONS);
+  const ss = getSpreadsheet();
+  if (!ss) return { error: 'Spreadsheet tidak tersedia (data disimpan di Supabase).' };
+
+  const sheet = ss.getSheetByName(SHEET_SUBMISSIONS);
+  if (!sheet) return { error: 'Sheet Submissions tidak ditemukan.' };
+
   const data  = sheet.getDataRange().getValues();
   let rowIdx = -1; // 1-indexed row number di sheet
   for (let r = 1; r < data.length; r++) {
@@ -334,7 +369,12 @@ function getSubmissionByNoForm(noForm) {
   noForm = String(noForm || '').trim();
   if (!noForm) return { error: 'No. Form kosong.' };
 
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SUBMISSIONS);
+  const ss = getSpreadsheet();
+  if (!ss) return { error: 'Spreadsheet tidak tersedia (data disimpan di Supabase).' };
+
+  const sheet = ss.getSheetByName(SHEET_SUBMISSIONS);
+  if (!sheet) return { error: 'Sheet Submissions tidak ditemukan.' };
+
   const data  = sheet.getDataRange().getValues();
   for (let r = 1; r < data.length; r++) {
     if (String(data[r][1]).trim() === noForm) {
@@ -351,7 +391,12 @@ function getSubmissionByNoForm(noForm) {
    ringan, diurutkan dari yang terbaru.
    ================================================================ */
 function getSubmissionsList() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SUBMISSIONS);
+  const ss = getSpreadsheet();
+  if (!ss) return { data: [] };
+
+  const sheet = ss.getSheetByName(SHEET_SUBMISSIONS);
+  if (!sheet) return { data: [] };
+
   const data  = sheet.getDataRange().getValues();
   const list = [];
   for (let r = 1; r < data.length; r++) {
@@ -414,7 +459,7 @@ function handleSubmitApproval(body) {
   // Update ke sheet Approvals & Submissions jika sheet tersedia
   let formRow = null;
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSpreadsheet();
     if (ss) {
       const apSheet = ss.getSheetByName(SHEET_APPROVALS);
       if (apSheet) {
@@ -446,9 +491,9 @@ function handleSubmitApproval(body) {
   // Kirim email sesuai kondisi
   let emailFailed = false;
   try {
-    const borrowerEmail = (formRow && formRow[9]) ? formRow[9] : (body.peminjamEmail || '');
-    const borrowerNama  = (formRow && formRow[3]) ? formRow[3] : (body.peminjamNama || 'Peminjam');
-    const noForm        = (formRow && formRow[1]) ? formRow[1] : (body.noForm || '-');
+    const borrowerEmail = (formRow && formRow[9]) ? formRow[9] : (body.peminjamEmail || (body.submission && body.submission.email) || '');
+    const borrowerNama  = (formRow && formRow[3]) ? formRow[3] : (body.peminjamNama || (body.submission && body.submission.nama) || 'Peminjam');
+    const noForm        = (formRow && formRow[1]) ? formRow[1] : (body.noForm || (body.submission && body.submission.no_form) || '-');
 
     if (newStatus === 'approved1') {
       // Kirim ke Approver 2 jika formRow ada atau data tersedia
@@ -462,13 +507,25 @@ function handleSubmitApproval(body) {
           jenis: formRow[19], merk: formRow[20], nopol: formRow[21], warna: formRow[22], tahun: formRow[23]
         }}, formRow[42]);
       } else {
-        sendApprovalEmail(2, token, { noForm: noForm, pengguna: {
-          nama: borrowerNama, email: borrowerEmail
-        }}, '');
+        const sub = body.submission || {};
+        sendApprovalEmail(2, token, {
+          noForm: noForm,
+          pengguna: {
+            nama: borrowerNama, email: borrowerEmail, perusahaan: sub.perusahaan || '', jabatan: sub.jabatan || '', telepon: sub.telepon || ''
+          },
+          pemakaian: {
+            tujuan: sub.tujuan || '', tglMulai: sub.tgl_mulai || '', tglSelesai: sub.tgl_selesai || '', durasi: sub.durasi || '', lokasiJemput: sub.lokasi_jemput || '', denganDriver: sub.dengan_driver || ''
+          },
+          kendaraan: {
+            jenis: sub.jenis || '', merk: sub.merk || '', nopol: sub.nopol || '', warna: sub.warna || '', tahun: sub.tahun || ''
+          },
+          fotoSimUrl: sub.foto_sim_url || '',
+          fotoBensinUrl: sub.foto_bensin_url || ''
+        }, sub.foto_sim_url || '');
       }
-    } else if (newStatus === 'approved2' || newStatus === 'rejected') {
+    } else if (newStatus === 'approved2' || newStatus === 'approved' || newStatus === 'rejected') {
       // Kirim email hasil ke peminjam
-      sendResultEmailToBorrower({ 1: noForm, 3: borrowerNama, 9: borrowerEmail }, newStatus === 'approved2' ? 'approved' : 'rejected', note);
+      sendResultEmailToBorrower({ 1: noForm, 3: borrowerNama, 9: borrowerEmail }, (newStatus === 'approved2' || newStatus === 'approved') ? 'approved' : 'rejected', note);
     }
   } catch(err) {
     Logger.log('Gagal kirim email approval (status=' + newStatus + '): ' + err);
@@ -487,15 +544,16 @@ function getApprovalData(token) {
   const row = getSubmissionByToken(token);
   if (!row) return { error: 'Data tidak ditemukan untuk token ini' };
 
-  // Baca status approval dari sheet Approvals
-  const apSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_APPROVALS);
-  const apData  = apSheet.getDataRange().getValues();
+  // Baca status approval dari sheet Approvals jika ada
+  const ss = getSpreadsheet();
+  const apSheet = ss ? ss.getSheetByName(SHEET_APPROVALS) : null;
+  const apData  = apSheet ? apSheet.getDataRange().getValues() : [];
   let apRow = null;
   for (let r = 1; r < apData.length; r++) {
     if (String(apData[r][0]).trim() === token) { apRow = apData[r]; break; }
   }
 
-  const approvalStatus = apRow ? String(apRow[2]) : 'pending';
+  const approvalStatus = apRow ? String(apRow[2]) : (row[43] || 'pending');
 
   return {
     data: {
@@ -524,9 +582,6 @@ function getApprovalData(token) {
       jabatanDari:     row[30],
       namaKe:          row[32],
       jabatanKe:       row[33],
-      // Catatan: tanda tangan digital (ttdDari/ttdKe) saat ini TIDAK
-      // disimpan ke sheet Submissions oleh handleSubmitForm(), jadi
-      // tidak ada kolom sumber yang valid untuk dua field ini.
       ttdDari:         '',
       ttdKe:           '',
       fotoSimUrl:      row[42] || '',
@@ -547,7 +602,10 @@ function getApprovalData(token) {
    Kolom Token = index 44 (0-indexed) / kolom ke-45 (1-indexed).
    ================================================================ */
 function getSubmissionByToken(token) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SUBMISSIONS);
+  const ss = getSpreadsheet();
+  if (!ss) return null;
+  const sheet = ss.getSheetByName(SHEET_SUBMISSIONS);
+  if (!sheet) return null;
   const data  = sheet.getDataRange().getValues();
   for (let r = 1; r < data.length; r++) {
     if (String(data[r][44]).trim() === token) return data[r];
@@ -556,7 +614,10 @@ function getSubmissionByToken(token) {
 }
 
 function updateSubmissionStatus(token, status) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SUBMISSIONS);
+  const ss = getSpreadsheet();
+  if (!ss) return;
+  const sheet = ss.getSheetByName(SHEET_SUBMISSIONS);
+  if (!sheet) return;
   const data  = sheet.getDataRange().getValues();
   for (let r = 1; r < data.length; r++) {
     if (String(data[r][44]).trim() === token) {
@@ -576,6 +637,9 @@ function sendApprovalEmail(role, token, body, fotoSimUrl) {
   const i = body.pemakaian || {};
   const k = body.kendaraan || {};
   const noForm = body.noForm || '-';
+
+  const fotoSim = fotoSimUrl || body.fotoSimUrl || '';
+  const fotoBensin = body.fotoBensinUrl || (body.submission && body.submission.foto_bensin_url) || '';
 
   const approvalLink = `${APPROVAL_PAGE_URL}?token=${token}&role=${role}`;
 
@@ -599,7 +663,8 @@ function sendApprovalEmail(role, token, body, fotoSimUrl) {
       <tr><td style="padding:7px 10px;font-weight:600;">Durasi</td><td style="padding:7px 10px;">${i.durasi||'-'} hari</td></tr>
       <tr style="background:#f5f5f5;"><td style="padding:7px 10px;font-weight:600;">Kendaraan</td><td style="padding:7px 10px;">${k.merk||'-'} (${k.nopol||'-'})</td></tr>
       <tr><td style="padding:7px 10px;font-weight:600;">Dengan Driver</td><td style="padding:7px 10px;">${i.denganDriver||'-'}</td></tr>
-      ${fotoSimUrl ? `<tr style="background:#f5f5f5;"><td style="padding:7px 10px;font-weight:600;">Foto SIM</td><td style="padding:7px 10px;"><a href="${fotoSimUrl}" target="_blank">Lihat Foto SIM</a></td></tr>` : ''}
+      ${fotoSim ? `<tr style="background:#f5f5f5;"><td style="padding:7px 10px;font-weight:600;">Foto SIM</td><td style="padding:7px 10px;"><a href="${fotoSim}" target="_blank">Lihat Foto SIM</a></td></tr>` : ''}
+      ${fotoBensin ? `<tr><td style="padding:7px 10px;font-weight:600;">Foto Indikator Bensin</td><td style="padding:7px 10px;"><a href="${fotoBensin}" target="_blank">Lihat Foto Bensin</a></td></tr>` : ''}
     </table>
     <div style="text-align:center;margin:24px 0;">
       <a href="${approvalLink}" style="display:inline-block;background:#1e7a3c;color:#fff;text-decoration:none;padding:14px 32px;border-radius:7px;font-size:15px;font-weight:700;">
@@ -611,8 +676,8 @@ function sendApprovalEmail(role, token, body, fotoSimUrl) {
       <a href="${approvalLink}">${approvalLink}</a>
     </p>
     <p style="font-size:12px;color:#888;">
-      Di halaman approval Anda bisa melihat detail lengkap form, foto SIM, tanda tangan peminjam,
-      memberikan TTD digital, dan memilih Setuju atau Tolak.
+      Di halaman approval Anda bisa melihat detail lengkap form, foto SIM, foto indikator bensin,
+      tanda tangan peminjam, memberikan TTD digital, dan memilih Setuju atau Tolak.
     </p>
   </div>
   <div style="background:#f5f5f5;padding:12px 24px;font-size:11px;color:#888;text-align:center;">
@@ -715,9 +780,11 @@ function uploadImageToDrive(base64DataUrl, filename) {
    ACTIVE LOANS
    ================================================================ */
 function getActiveLoans() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSpreadsheet();
+  if (!ss) return [];
   const subSheet = ss.getSheetByName(SHEET_SUBMISSIONS);
   const retSheet = ss.getSheetByName(SHEET_RETURNS);
+  if (!subSheet || !retSheet) return [];
 
   const retData = retSheet.getDataRange().getValues();
   const returnedForms = new Set();
@@ -780,20 +847,25 @@ function checkVehicleAvailability() {
    RETURNS
    ================================================================ */
 function handleSubmitReturn(body) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_RETURNS);
-  const s  = body.serahTerima || {};
-  const kl = s.kelengkapan    || {};
-  sheet.appendRow([
-    new Date(), body.noFormRet, body.tanggalFormRet,
-    body.refNoForm, body.refNama, body.refPerusahaan, body.refNopol,
-    body.kmAwal, body.kmAkhir, body.kmTempuh,
-    body.fuelLevelKembali, body.kondisiKembali,
-    body.tglKembali, body.waktuKembali, body.lokasiKembali,
-    body.statusKeterlambatan, body.selisihHari, body.catatanTerlambat,
-    s.namaDari, s.jabatanDari, s.tglDari,
-    s.namaKe, s.jabatanKe, s.tglKe,
-    kl.stnk, kl.kunciCadangan, kl.dongkrak, kl.banSerep, kl.segitiga, kl.p3k, kl.lainnya
-  ]);
+  const ss = getSpreadsheet();
+  if (ss) {
+    const sheet = ss.getSheetByName(SHEET_RETURNS);
+    if (sheet) {
+      const s  = body.serahTerima || {};
+      const kl = s.kelengkapan    || {};
+      sheet.appendRow([
+        new Date(), body.noFormRet, body.tanggalFormRet,
+        body.refNoForm, body.refNama, body.refPerusahaan, body.refNopol,
+        body.kmAwal, body.kmAkhir, body.kmTempuh,
+        body.fuelLevelKembali, body.kondisiKembali,
+        body.tglKembali, body.waktuKembali, body.lokasiKembali,
+        body.statusKeterlambatan, body.selisihHari, body.catatanTerlambat,
+        s.namaDari, s.jabatanDari, s.tglDari,
+        s.namaKe, s.jabatanKe, s.tglKe,
+        kl.stnk, kl.kunciCadangan, kl.dongkrak, kl.banSerep, kl.segitiga, kl.p3k, kl.lainnya
+      ]);
+    }
+  }
   return { status: 'ok' };
 }
 
@@ -801,7 +873,10 @@ function handleSubmitReturn(body) {
    VEHICLE
    ================================================================ */
 function readVehicle() {
-  const sheet  = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_VEHICLE);
+  const ss = getSpreadsheet();
+  if (!ss) return {};
+  const sheet  = ss.getSheetByName(SHEET_VEHICLE);
+  if (!sheet) return {};
   const values = sheet.getDataRange().getValues();
   const headers = values[0];
   const row     = values[1] || [];
@@ -811,17 +886,60 @@ function readVehicle() {
 }
 
 function writeVehicle(data) {
-  const sheet   = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_VEHICLE);
+  const ss = getSpreadsheet();
+  if (!ss) return;
+  const sheet   = ss.getSheetByName(SHEET_VEHICLE);
+  if (!sheet) return;
   const headers = sheet.getDataRange().getValues()[0];
   const row     = headers.map(h => data[h] !== undefined ? data[h] : '');
   sheet.getRange(2, 1, 1, row.length).setValues([row]);
 }
 
 /* ================================================================
-   UTIL
+   UTIL & TEST
    ================================================================ */
 function jsonResponse(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * FUNGSI TEST PENGIRIMAN EMAIL & OTORISASI
+ * Jalankan fungsi ini langsung di editor Apps Script (pilih fungsi 'testSendEmail' lalu klik 'Run'/'Jalankan')
+ * untuk memicu popup izin Google (Authorize Access) dan menguji pengiriman email ke inbox / sent items.
+ */
+function testSendEmail() {
+  const testBody = {
+    noForm: 'FPM-TEST-OAUTH',
+    pengguna: {
+      nama: 'Testing Google Apps Script Mailer',
+      perusahaan: 'PT Integra Solusi Mandiri',
+      jabatan: 'IT / Super Admin',
+      email: 'adminprojecttis@gmail.com',
+      telepon: '08123456789'
+    },
+    pemakaian: {
+      tujuan: 'Uji Coba Pengiriman Notifikasi & Tembusan Super Admin',
+      tglMulai: '2026-10-22',
+      waktuMulai: '14:30',
+      tglSelesai: '2026-10-22',
+      waktuSelesai: '17:00',
+      durasi: 1,
+      lokasiJemput: 'Kantor ISM',
+      lokasiKembali: 'Kantor ISM',
+      denganDriver: 'Tidak'
+    },
+    kendaraan: {
+      jenis: 'Mobil',
+      merk: 'Toyota Avanza',
+      nopol: 'B 1234 ABC'
+    },
+    fotoSimUrl: '',
+    fotoBensinUrl: ''
+  };
+
+  Logger.log('Memulai uji coba kirim email...');
+  sendApprovalEmail(1, 'test-token-debug-12345', testBody, '');
+  Logger.log('✅ Uji coba kirim email berhasil diproses! Periksa folder Sent di Gmail Anda.');
 }

@@ -859,7 +859,18 @@ async function submitApprovalAction(token, roleNum, decision) {
     fetch("https://script.google.com/macros/s/AKfycbzpYXAtbE_b0sKRJIaqwQihpDQvuCgD7V9GKg_9IKxbnBa8LGfYrAPPVo5Dk0Nhhu_G/exec", {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'submitApproval', token: token, role: roleNum, decision: decision, note: note, newStatus: newStatus })
+      body: JSON.stringify({
+        action: 'submitApproval',
+        token: token,
+        role: roleNum,
+        decision: decision,
+        note: note,
+        newStatus: newStatus,
+        noForm: currentSub.no_form || '',
+        peminjamNama: currentSub.nama || '',
+        peminjamEmail: currentSub.email || '',
+        submission: currentSub
+      })
     }).catch(err => console.warn('Email background trigger warning:', err));
 
     closeDetailModal();
